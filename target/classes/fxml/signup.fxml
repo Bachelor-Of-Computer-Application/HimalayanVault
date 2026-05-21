@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.shape.*?>
+
+<StackPane xmlns="http://javafx.com/javafx"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.himalayanvault.ui.SignupController"
+           styleClass="root-pane"
+           stylesheets="@../css/signup.css">
+
+    <VBox alignment="CENTER" styleClass="bg-pane">
+        <VBox styleClass="signup-card" maxWidth="400" minWidth="360">
+
+            <!-- ── Card Header ── -->
+            <VBox styleClass="card-header" alignment="CENTER" spacing="8">
+                <StackPane styleClass="shield-circle">
+                    <Label styleClass="shield-icon" text="🔒"/>
+                </StackPane>
+                <Label styleClass="app-title"    text="Himalayan Vault"/>
+                <Label styleClass="app-subtitle" text="Create your secure vault"/>
+
+                <!-- Step indicator -->
+                <HBox fx:id="stepIndicator" alignment="CENTER" spacing="8"
+                      VBox.margin="$top4">
+                    <StackPane styleClass="step-dot step-active"  fx:id="dot1"><Label text="1"/></StackPane>
+                    <Rectangle styleClass="step-line" fx:id="line1" width="40" height="2"/>
+                    <StackPane styleClass="step-dot step-inactive" fx:id="dot2"><Label text="2"/></StackPane>
+                    <Rectangle styleClass="step-line" fx:id="line2" width="40" height="2"/>
+                    <StackPane styleClass="step-dot step-inactive" fx:id="dot3"><Label text="3"/></StackPane>
+                </HBox>
+                <Label fx:id="stepLbl" styleClass="step-label"
+                       text="Step 1 of 3 — Set master password"/>
+            </VBox>
+
+            <!-- ══════════════════════════════════════════════════════
+                 STEP 1 — Create Username and Set Master Password
+            ══════════════════════════════════════════════════════ -->
+            <VBox fx:id="step1" styleClass="card-body" spacing="0">
+
+                <!-- Info banner -->
+                <HBox styleClass="info-box" alignment="CENTER_LEFT" spacing="8">
+                    <Label text="ℹ" styleClass="info-icon"/>
+                    <Label styleClass="info-text" wrapText="true" HBox.hgrow="ALWAYS"
+                           text="Your master password is never stored. It derives your encryption key — choose something strong and memorable."/>
+                </HBox>
+
+                <!-- Username -->
+                <Label styleClass="field-label" text="Username"
+                       VBox.margin="$top12"/>
+                <TextField fx:id="usernameField" styleClass="text-input"
+                          promptText="Choose a unique username for this vault"
+                          HBox.hgrow="ALWAYS">
+                    <VBox.margin>
+                        <Insets bottom="10"/>
+                    </VBox.margin>
+                </TextField>
+
+                <!-- Master Password -->
+                <Label styleClass="field-label" text="Master Password"
+                       VBox.margin="$top12"/>
+                <HBox styleClass="input-wrap" alignment="CENTER_LEFT">
+                    <PasswordField fx:id="pwdField"  styleClass="text-input"
+                                  promptText="Min 12 chars · upper · lower · number · symbol"
+                                  HBox.hgrow="ALWAYS"/>
+                    <TextField    fx:id="pwdVis" styleClass="text-input"
+                                  promptText="Min 12 chars · upper · lower · number · symbol"
+                                  HBox.hgrow="ALWAYS" visible="false" managed="false"/>
+                    <Button fx:id="eye1" styleClass="eye-btn" text="👁"
+                            onAction="#togglePwd1" focusTraversable="false"/>
+                </HBox>
+
+                <!-- Strength bar -->
+                <HBox fx:id="strengthBar" styleClass="strength-bar" spacing="4">
+                    <Rectangle fx:id="seg1" styleClass="strength-seg" width="1" height="4" HBox.hgrow="ALWAYS"/>
+                    <Rectangle fx:id="seg2" styleClass="strength-seg" width="1" height="4" HBox.hgrow="ALWAYS"/>
+                    <Rectangle fx:id="seg3" styleClass="strength-seg" width="1" height="4" HBox.hgrow="ALWAYS"/>
+                    <Rectangle fx:id="seg4" styleClass="strength-seg" width="1" height="4" HBox.hgrow="ALWAYS"/>
+                </HBox>
+                <Label fx:id="strengthLbl" styleClass="strength-label" text=""/>
+
+                <!-- Confirm Password -->
+                <Label styleClass="field-label" text="Confirm Password"
+                       VBox.margin="$top10"/>
+                <HBox styleClass="input-wrap" alignment="CENTER_LEFT">
+                    <PasswordField fx:id="confirmField"   styleClass="text-input"
+                                  promptText="Re-enter master password"
+                                  HBox.hgrow="ALWAYS"
+                                  onAction="#step1Next"/>
+                    <TextField    fx:id="confirmVis"  styleClass="text-input"
+                                  promptText="Re-enter master password"
+                                  HBox.hgrow="ALWAYS" visible="false" managed="false"
+                                  onAction="#step1Next"/>
+                    <Button fx:id="eye2" styleClass="eye-btn" text="👁"
+                            onAction="#togglePwd2" focusTraversable="false"/>
+                </HBox>
+                <Label fx:id="matchLbl" styleClass="match-label" text=""/>
+
+                <!-- Password rules checklist -->
+                <VBox styleClass="rules-box" spacing="5">
+                    <VBox.margin><Insets top="10" bottom="2"/></VBox.margin>
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <Label fx:id="r1" styleClass="rule-icon" text="○"/>
+                        <Label styleClass="rule-text" text="At least 12 characters"/>
+                    </HBox>
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <Label fx:id="r2" styleClass="rule-icon" text="○"/>
+                        <Label styleClass="rule-text" text="Uppercase and lowercase letters"/>
+                    </HBox>
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <Label fx:id="r3" styleClass="rule-icon" text="○"/>
+                        <Label styleClass="rule-text" text="At least one number"/>
+                    </HBox>
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <Label fx:id="r4" styleClass="rule-icon" text="○"/>
+                        <Label styleClass="rule-text" text="At least one symbol  ( ! @ # $ % )"/>
+                    </HBox>
+                </VBox>
+
+                <!-- Error label -->
+                <Label fx:id="err1" styleClass="error-label" text=""
+                       VBox.margin="$top8" wrapText="true"/>
+
+                <!-- Next button -->
+                <Button styleClass="btn-primary" text="Continue →"
+                        maxWidth="Infinity" onAction="#step1Next"
+                        defaultButton="true">
+                    <VBox.margin><Insets top="14"/></VBox.margin>
+                </Button>
+
+                <HBox alignment="CENTER" VBox.margin="$top12">
+                    <Label styleClass="login-link-text" text="Already have a vault? "/>
+                    <Label styleClass="login-link" text="Sign in →"
+                           onMouseClicked="#switchToLogin"/>
+                </HBox>
+            </VBox>
+
+            <!-- ══════════════════════════════════════════════════════
+                 STEP 2 — Recovery Code
+            ══════════════════════════════════════════════════════ -->
+            <VBox fx:id="step2" styleClass="card-body" spacing="0"
+                  visible="false" managed="false">
+
+                <HBox styleClass="warn-box" alignment="CENTER_LEFT" spacing="8">
+                    <Label text="⚠" styleClass="warn-icon"/>
+                    <Label styleClass="warn-text" wrapText="true" HBox.hgrow="ALWAYS"
+                           text="Write these 16 words down and store them safely. This is your ONLY way to recover your vault if you forget your master password. It cannot be recovered later."/>
+                </HBox>
+
+                <Label styleClass="field-label" text="Your 16-word BIP39 Recovery Code"
+                       VBox.margin="$top14"/>
+
+                <!-- 4×4 word grid -->
+                <GridPane fx:id="wordGrid" styleClass="word-grid" hgap="8" vgap="8">
+                    <VBox.margin><Insets top="6" bottom="10"/></VBox.margin>
+                </GridPane>
+
+                <!-- Copy button -->
+                <Button styleClass="btn-secondary" text="📋  Copy all words"
+                        maxWidth="Infinity" onAction="#copyWords"/>
+
+                <!-- Confirmation checkbox -->
+                <CheckBox fx:id="savedCheck" styleClass="saved-check"
+                          text="I have written down all 16 words in a safe place"
+                          wrapText="true">
+                    <VBox.margin><Insets top="12" bottom="4"/></VBox.margin>
+                </CheckBox>
+
+                <Label fx:id="err2" styleClass="error-label" text="" wrapText="true"/>
+
+                <Button styleClass="btn-primary"
+                        text="I've saved it — Continue →"
+                        maxWidth="Infinity" onAction="#step2Next">
+                    <VBox.margin><Insets top="12"/></VBox.margin>
+                </Button>
+
+                <Button styleClass="btn-ghost" text="← Back"
+                        maxWidth="Infinity" onAction="#back1">
+                    <VBox.margin><Insets top="6"/></VBox.margin>
+                </Button>
+            </VBox>
+
+            <!-- ══════════════════════════════════════════════════════
+                 STEP 3 — Verify Recovery Code
+            ══════════════════════════════════════════════════════ -->
+            <VBox fx:id="step3" styleClass="card-body" spacing="0"
+                  visible="false" managed="false">
+
+                <HBox styleClass="info-box" alignment="CENTER_LEFT" spacing="8">
+                    <Label text="ℹ" styleClass="info-icon"/>
+                    <Label styleClass="info-text" wrapText="true" HBox.hgrow="ALWAYS"
+                           text="Enter the words in the correct order to confirm you have saved your recovery code."/>
+                </HBox>
+
+                <Label styleClass="field-label"
+                       text="Enter words 3, 7 and 12 to verify"
+                       VBox.margin="$top12"/>
+
+                <!-- 3 spot-check fields -->
+                <HBox spacing="10" VBox.margin="$top6">
+                    <VBox HBox.hgrow="ALWAYS" spacing="4">
+                        <Label fx:id="vlbl1" styleClass="word-num-label" text="Word #3"/>
+                        <TextField fx:id="v1" styleClass="text-input" promptText="word 3"/>
+                    </VBox>
+                    <VBox HBox.hgrow="ALWAYS" spacing="4">
+                        <Label fx:id="vlbl2" styleClass="word-num-label" text="Word #7"/>
+                        <TextField fx:id="v2" styleClass="text-input" promptText="word 7"/>
+                    </VBox>
+                    <VBox HBox.hgrow="ALWAYS" spacing="4">
+                        <Label fx:id="vlbl3" styleClass="word-num-label" text="Word #12"/>
+                        <TextField fx:id="v3" styleClass="text-input" promptText="word 12"/>
+                    </VBox>
+                </HBox>
+
+                <Label fx:id="err3" styleClass="error-label" text=""
+                       VBox.margin="$top8" wrapText="true"/>
+
+                <!-- Create Vault button -->
+                <Button styleClass="btn-success" text="✓  Create Vault"
+                        maxWidth="Infinity" onAction="#createVault"
+                        defaultButton="true">
+                    <VBox.margin><Insets top="16"/></VBox.margin>
+                </Button>
+
+                <Button styleClass="btn-ghost" text="← Back"
+                        maxWidth="Infinity" onAction="#back2">
+                    <VBox.margin><Insets top="6"/></VBox.margin>
+                </Button>
+            </VBox>
+
+            <!-- ── Status Bar ── -->
+            <HBox styleClass="status-bar" alignment="CENTER_LEFT" spacing="8">
+                <Circle styleClass="status-dot" radius="4"/>
+                <Label styleClass="status-text" text="No vault found · First-time setup"
+                       HBox.hgrow="ALWAYS"/>
+                <Label styleClass="status-shortcut" text="AES-256-GCM"/>
+            </HBox>
+
+        </VBox>
+    </VBox>
+</StackPane>

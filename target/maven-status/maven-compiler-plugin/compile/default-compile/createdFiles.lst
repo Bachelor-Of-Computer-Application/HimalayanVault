@@ -1,0 +1,9 @@
+com/himalayanvault/ui/SignupController.class
+com/himalayanvault/ui/RecoveryController.class
+com/himalayanvault/ui/LoginController.class
+com/himalayanvault/Main.class
+com/himalayanvault/db/DatabaseManager.class
+com/himalayanvault/ui/VaultController.class
+com/himalayanvault/auth/BiometricHandler.class
+com/himalayanvault/auth/RecoveryCodeManager.class
+com/himalayanvault/auth/AuthManager.class

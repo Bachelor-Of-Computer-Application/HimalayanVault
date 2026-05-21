@@ -1,0 +1,9 @@
+/home/prasish/Project/HimalayanVault/src/main/java/com/himalayanvault/Main.java
+/home/prasish/Project/HimalayanVault/src/main/java/com/himalayanvault/auth/AuthManager.java
+/home/prasish/Project/HimalayanVault/src/main/java/com/himalayanvault/auth/BiometricHandler.java
+/home/prasish/Project/HimalayanVault/src/main/java/com/himalayanvault/auth/RecoveryCodeManager.java
+/home/prasish/Project/HimalayanVault/src/main/java/com/himalayanvault/db/DatabaseManager.java
+/home/prasish/Project/HimalayanVault/src/main/java/com/himalayanvault/ui/LoginController.java
+/home/prasish/Project/HimalayanVault/src/main/java/com/himalayanvault/ui/RecoveryController.java
+/home/prasish/Project/HimalayanVault/src/main/java/com/himalayanvault/ui/SignupController.java
+/home/prasish/Project/HimalayanVault/src/main/java/com/himalayanvault/ui/VaultController.java
