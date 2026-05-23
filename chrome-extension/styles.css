@@ -1,0 +1,713 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    width: 450px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, #0f1729 0%, #1a0f3f 25%, #2d1b4e 50%, #1a0f3f 75%, #0f1729 100%);
+    padding: 0;
+    color: #fff;
+}
+
+:root {
+    --primary-color: #00d4ff;
+    --secondary-color: #667eea;
+    --accent-color: #ff00ff;
+    --dark-bg: #0f1729;
+    --card-bg: rgba(20, 30, 60, 0.8);
+    --text-primary: #ffffff;
+    --text-secondary: #a0aec0;
+    
+    /* Light theme */
+    --panel-bg: rgba(255, 255, 255, 0.95);
+    --panel-text: #333;
+    --panel-text-secondary: #666;
+    --input-bg: rgba(255, 255, 255, 0.1);
+    --input-border: rgba(0, 212, 255, 0.3);
+    --section-border: #eee;
+    --card-bg-light: #f9f9f9;
+    --card-text: #333;
+    --card-text-secondary: #666;
+    --btn-secondary-bg: #f0f0f0;
+    --btn-secondary-text: #333;
+    --btn-secondary-hover: #e0e0e0;
+    --generated-pw-bg: #f0f0f0;
+    --generated-pw-text: #333;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        /* Dark theme */
+        --panel-bg: #1a1a2e;
+        --panel-text: #e0e0e0;
+        --panel-text-secondary: #b0b0b0;
+        --input-bg: rgba(255, 255, 255, 0.08);
+        --input-border: rgba(0, 212, 255, 0.2);
+        --section-border: #333;
+        --card-bg-light: #262641;
+        --card-text: #e0e0e0;
+        --card-text-secondary: #b0b0b0;
+        --btn-secondary-bg: #333;
+        --btn-secondary-text: #e0e0e0;
+        --btn-secondary-hover: #444;
+        --generated-pw-bg: #262641;
+        --generated-pw-text: #e0e0e0;
+    }
+}
+
+.panel {
+    padding: 20px;
+    background: var(--panel-bg);
+    min-height: 100vh;
+    color: var(--panel-text);
+}
+
+/* Login Panel - Futuristic Design */
+.login-panel {
+    background: linear-gradient(135deg, rgba(15, 23, 41, 0.98) 0%, rgba(45, 27, 78, 0.98) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    min-height: 100vh;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+}
+
+.logo-section {
+    margin-bottom: 40px;
+    animation: fadeInDown 0.6s ease;
+}
+
+.logo-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+    display: inline-block;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+.logo-section h2 {
+    color: #00d4ff;
+    font-size: 28px;
+    margin-bottom: 8px;
+    text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    font-weight: 700;
+}
+
+.tagline {
+    color: #a0aec0;
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 1px;
+}
+
+.login-form {
+    animation: fadeInUp 0.6s ease;
+}
+
+h2 {
+    color: var(--panel-text);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+h3 {
+    color: var(--panel-text);
+    margin-top: 20px;
+    margin-bottom: 15px;
+    font-size: 16px;
+    border-bottom: 2px solid #667eea;
+    padding-bottom: 10px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--panel-text-secondary);
+    font-weight: 500;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="url"],
+input[type="number"],
+textarea {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--input-bg);
+    color: var(--panel-text);
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+}
+
+.login-panel input[type="text"],
+.login-panel input[type="password"] {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1.5px solid rgba(0, 212, 255, 0.2);
+}
+
+input::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+input:focus,
+textarea:focus {
+    outline: none;
+    border-color: #00d4ff;
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.btn {
+    padding: 12px 20px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+    color: #0f1729;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #00e8ff 0%, #00bbff 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 212, 255, 0.5);
+}
+
+.btn-large {
+    padding: 14px 20px;
+    font-size: 16px;
+    margin-top: 10px;
+}
+
+.btn-secondary {
+    background: var(--btn-secondary-bg);
+    color: var(--btn-secondary-text);
+    width: auto;
+}
+
+.btn-secondary:hover {
+    background: var(--btn-secondary-hover);
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    color: var(--panel-text);
+}
+
+.header h2 {
+    margin: 0;
+    color: var(--panel-text);
+}
+
+.section {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--section-border);
+}
+
+.section:last-child {
+    border-bottom: none;
+}
+
+.checkboxes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.checkboxes label {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    cursor: pointer;
+    color: var(--panel-text-secondary);
+}
+
+.checkboxes input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+    cursor: pointer;
+}
+
+.error {
+    background: rgba(255, 0, 0, 0.15);
+    color: #ff4466;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-size: 13px;
+    border-left: 3px solid #ff4466;
+}
+
+.success {
+    background: rgba(46, 125, 50, 0.15);
+    color: #4caf50;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .success {
+        background: rgba(76, 175, 80, 0.15);
+        color: #66bb6a;
+    }
+}
+
+.credentials-list {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.credential-item {
+    background: var(--card-bg-light);
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    border-left: 4px solid #667eea;
+}
+
+.credential-item h4 {
+    color: var(--card-text);
+    margin: 0 0 5px 0;
+    font-size: 14px;
+}
+
+.credential-item p {
+    margin: 3px 0;
+    color: var(--card-text-secondary);
+    font-size: 13px;
+}
+
+.credential-item .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.credential-item button {
+    padding: 5px 10px;
+    font-size: 12px;
+    width: auto;
+}
+
+.generated-password {
+    background: var(--generated-pw-bg);
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    word-break: break-all;
+    color: var(--generated-pw-text);
+}
+
+.login-links {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.link-text {
+    color: #00d4ff;
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.link-text:hover {
+    color: #00e8ff;
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
+/* Quick Save Prompt */
+.quick-save-prompt {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(102, 126, 234, 0.1) 100%);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    animation: slideIn 0.3s ease;
+}
+
+.quick-save-content h4 {
+    color: var(--panel-text);
+    margin-bottom: 8px;
+}
+
+.quick-save-content p {
+    color: var(--panel-text-secondary);
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.quick-save-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.quick-save-actions .btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Copy Feedback Notification */
+.copy-feedback {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+    color: #0f1729;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+    z-index: 10000;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Credentials Popup (Injected on web pages) */
+.hv-credentials-popup {
+    position: fixed;
+    background: var(--panel-bg);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    min-width: 250px;
+    max-width: 300px;
+    animation: popupSlideIn 0.2s ease;
+}
+
+@keyframes popupSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.hv-popup-content {
+    padding: 0;
+}
+
+.hv-popup-header {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(102, 126, 234, 0.1) 100%);
+    border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+    padding: 10px 12px;
+    font-weight: 600;
+    color: #00d4ff;
+    font-size: 12px;
+    border-radius: 8px 8px 0 0;
+}
+
+.hv-popup-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.hv-popup-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(0, 212, 255, 0.1);
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.hv-popup-item:hover {
+    background: rgba(0, 212, 255, 0.08);
+}
+
+.hv-popup-item:last-child {
+    border-bottom: none;
+}
+
+.hv-popup-username {
+    color: var(--panel-text);
+    font-size: 13px;
+    font-weight: 500;
+    flex: 1;
+}
+
+.hv-popup-fill {
+    background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+    color: #0f1729;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.hv-popup-fill:hover {
+    background: linear-gradient(135deg, #00e8ff 0%, #00bbff 100%);
+    transform: scale(1.05);
+}
+
+.hv-popup-footer {
+    background: rgba(0, 212, 255, 0.05);
+    border-top: 1px solid rgba(0, 212, 255, 0.1);
+    padding: 6px 12px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--panel-text-secondary);
+    border-radius: 0 0 8px 8px;
+}
+
+/* Autofill Button in extension */
+.btn-autofill {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff !important;
+    border: none;
+}
+
+.btn-autofill:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+/* ============================================
+   Save Prompt Banner (Like Google Password Manager)
+   ============================================ */
+
+.hv-save-banner {
+    position: fixed;
+    bottom: -100px;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, var(--panel-bg) 0%, rgba(0, 212, 255, 0.05) 100%);
+    border-top: 2px solid #00d4ff;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    transition: bottom 0.3s ease;
+    padding: 16px 20px;
+}
+
+.hv-save-banner.hv-banner-show {
+    bottom: 0;
+}
+
+.hv-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.hv-banner-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+}
+
+.hv-banner-text {
+    flex: 1;
+}
+
+.hv-banner-title {
+    color: var(--panel-text);
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 4px;
+}
+
+.hv-banner-subtitle {
+    color: var(--panel-text-secondary);
+    font-size: 13px;
+}
+
+.hv-banner-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.hv-btn-skip,
+.hv-btn-save {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.hv-btn-skip {
+    background: transparent;
+    color: var(--panel-text-secondary);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.hv-btn-skip:hover {
+    background: rgba(0, 212, 255, 0.1);
+    color: var(--panel-text);
+}
+
+.hv-btn-save {
+    background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+    color: #0f1729;
+    box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+}
+
+.hv-btn-save:hover {
+    background: linear-gradient(135deg, #00e8ff 0%, #00bbff 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 212, 255, 0.5);
+}
+
+.hv-banner-close {
+    background: transparent;
+    border: none;
+    color: var(--panel-text-secondary);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    transition: color 0.2s ease;
+}
+
+.hv-banner-close:hover {
+    color: var(--panel-text);
+}
+
+/* Success Notification */
+.hv-success-notification {
+    position: fixed;
+    bottom: -100px;
+    right: 20px;
+    background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    z-index: 10000;
+    transition: bottom 0.3s ease;
+}
+
+.hv-success-notification.hv-notification-show {
+    bottom: 20px;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    .hv-save-banner {
+        padding: 12px 16px;
+    }
+    
+    .hv-banner-content {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .hv-banner-actions {
+        width: 100%;
+    }
+    
+    .hv-btn-skip,
+    .hv-btn-save {
+        flex: 1;
+        width: 100%;
+    }
+    
+    .hv-banner-close {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+    }
+}

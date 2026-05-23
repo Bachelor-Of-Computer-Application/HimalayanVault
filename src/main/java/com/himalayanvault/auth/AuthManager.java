@@ -10,7 +10,6 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
 import com.himalayanvault.db.DatabaseManager;
-
 /**
  * AuthManager — verifies the master password using PBKDF2-HMAC-SHA256.
  *
@@ -78,7 +77,6 @@ public class AuthManager {
 
         System.out.println("[AuthManager] Master password set for user: " + username);
     }
-
     /**
      * Resets the master password after verification of recovery code for a specific user.
      * Used in password recovery flow.
