@@ -19,8 +19,9 @@ import javafx.stage.Stage;
 public class Main extends Application {
 
     private ApiServer apiServer;
-
+    
     @Override
+    
     public void start(Stage primaryStage) throws Exception {
         // Initialize database on app startup
         DatabaseManager.getInstance();
@@ -39,11 +40,15 @@ public class Main extends Application {
             getClass().getResource("/fxml/login.fxml")
         );
 
-        Scene scene = new Scene(root, 420, 560);
+        Scene scene = new Scene(root, 1024, 640);
+
+scene.getStylesheets().add(
+    getClass().getResource("/css/login.css").toExternalForm()
+);
 
         primaryStage.setTitle("Himalayan Vault");
         primaryStage.setScene(scene);
-        primaryStage.setResizable(false);
+        primaryStage.setResizable(true);
 
         // Centre on screen
         primaryStage.centerOnScreen();

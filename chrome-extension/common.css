@@ -1,0 +1,456 @@
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:wght@200;300;400;500;600;700;800&display=swap");
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Open Sans", sans-serif;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 100vh;
+  width: 100%;
+  padding: 0 10px 20px;
+  background: url("icons/background_image.png");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  position: relative;
+}
+
+.background-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.background-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+/* Dark overlay for better text contrast */
+.background-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(10, 8, 18, 0.18) 0%, rgba(15, 12, 41, 0.12) 50%, rgba(10, 8, 18, 0.18) 100%);
+  pointer-events: none;
+}
+
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 35px 50px;
+  z-index: 100;
+  /* use translucent fill instead of blur; remove borders */
+  display: flex;
+  align-items: center;
+  border: none;
+  background: rgba(10, 8, 18, 0.12);
+  border-bottom: none;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  background: transparent;
+  filter: drop-shadow(0 0 6px rgba(0, 217, 255, 0.3));
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.logo-icon:hover {
+  transform: scale(1.2) rotate(5deg);
+  filter: drop-shadow(0 0 12px rgba(0, 217, 255, 0.6)) drop-shadow(0 0 20px rgba(0, 217, 255, 0.4));
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.logo-main {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #00d9ff;
+  line-height: 1.1;
+  text-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+}
+
+.wrapper {
+  width: 350px;
+  border-radius: 12px;
+  padding: 30px 25px;
+  text-align: center;
+  margin-bottom: 30px;
+  border: none;
+  /* translucent filled panel for see-through effect */
+  background: rgba(10, 8, 18, 0.22);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  border: none;
+}
+
+h2 {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  color: #64e8ff;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-align: left;
+}
+
+.input-field {
+  position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  margin: 15px 0;
+  padding: 8px 0;
+}
+
+.input-field label {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  color: #00d9ff;
+  font-size: 14px;
+  pointer-events: none;
+  transition: 0.3s ease;
+  font-weight: 400;
+}
+
+.input-field input {
+  width: 100%;
+  height: 30px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: #00d9ff;
+  font-weight: 500;
+}
+
+.input-field input::placeholder {
+  color: transparent;
+}
+
+.input-field input:focus,
+.input-field input:valid {
+  color: #64e8ff;
+}
+
+.input-field input:focus ~ label,
+.input-field input:valid ~ label {
+  font-size: 0.75rem;
+  top: -5px;
+  transform: translateY(0);
+  color: #64e8ff;
+}
+
+.auth-options {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 25px 0;
+  flex-wrap: wrap;
+}
+
+.login-btn {
+  flex: 1;
+  min-width: 100px;
+  background: #00d9ff;
+  color: #000;
+  font-weight: 600;
+  padding: 10px 15px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 13px;
+  border: 1px solid transparent;
+  transition: 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.login-btn:hover {
+  color: #00d9ff;
+  border-color: #00d9ff;
+  background: rgba(0, 217, 255, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 217, 255, 0.3);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+}
+
+.cancel-btn {
+  flex: 1;
+  min-width: 100px;
+  background: transparent;
+  color: #00d9ff;
+  font-weight: 600;
+  padding: 10px 15px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 13px;
+  border: 1px solid #00d9ff;
+  transition: 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cancel-btn:hover {
+  background: rgba(0, 217, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.cancel-btn:active {
+  transform: translateY(0);
+}
+
+.fingerprint-btn {
+  width: 45px;
+  height: 45px;
+  padding: 0;
+  background: rgba(0, 217, 255, 0.1);
+  color: #00d9ff;
+  border: 1px solid rgba(0, 217, 255, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.3s ease;
+}
+
+.fingerprint-btn:hover {
+  background: rgba(0, 217, 255, 0.25);
+  border-color: #00d9ff;
+  transform: scale(1.1);
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+}
+
+.fingerprint-btn:active {
+  transform: scale(0.95);
+}
+
+.fingerprint-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wrapper a {
+  color: #00d9ff;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 13px;
+  transition: 0.3s ease;
+}
+
+.wrapper a:hover {
+  color: #64e8ff;
+  text-decoration: underline;
+}
+
+.form-links {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 15px;
+  padding: 0 4px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.forgot-pwd, .sign-up, .sign-in {
+  color: #00d9ff;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 12px;
+  transition: 0.3s ease;
+}
+
+.forgot-pwd:hover, .sign-up:hover, .sign-in:hover {
+  color: #64e8ff;
+  text-decoration: underline;
+}
+
+.signin-text {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+
+.step-description {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .header {
+    padding: 20px 25px;
+  }
+
+  .logo-icon {
+    width: 35px;
+    height: 35px;
+  }
+
+  .logo-main {
+    font-size: 14px;
+  }
+
+  .wrapper {
+    width: 100%;
+    max-width: 350px;
+    padding: 25px 20px;
+    margin-top: 120px;
+  }
+
+  h2 {
+    font-size: 1.3rem;
+    margin-bottom: 15px;
+  }
+
+  .input-field {
+    margin: 12px 0;
+  }
+
+  .input-field label {
+    font-size: 12px;
+  }
+
+  .input-field input {
+    height: 28px;
+    font-size: 13px;
+  }
+
+  .auth-options {
+    margin: 20px 0;
+  }
+
+  .login-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .fingerprint-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 15px 15px;
+  }
+
+  .logo-icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  .logo-main {
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+
+  .wrapper {
+    width: calc(100% - 20px);
+    padding: 20px 15px;
+    border-radius: 12px;
+    margin-top: 100px;
+    margin-bottom: 20px;
+  }
+
+  h2 {
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+  }
+
+  .input-field {
+    margin: 10px 0;
+    padding: 6px 0;
+  }
+
+  .input-field label {
+    font-size: 11px;
+  }
+
+  .input-field input {
+    height: 25px;
+    font-size: 12px;
+  }
+
+  .auth-options {
+    gap: 8px;
+    margin: 15px 0;
+    flex-direction: column;
+  }
+
+  .login-btn, .cancel-btn {
+    width: 100%;
+  }
+
+  .fingerprint-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .fingerprint-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .form-links {
+    margin-top: 12px;
+  }
+}

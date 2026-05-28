@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Himalayan Vault - Login</title>
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="login.css">
+</head>
+<body class="login-page">
+    <div class="background-container">
+        <img src="icons/background_image.png" alt="Background" class="background-image">
+    </div>
+
+    <header class="header">
+        <div class="logo-container">
+            <img src="icons/icon.png" alt="Himalayan Vault" class="logo-icon">
+            <div class="logo-text">
+                <span class="logo-main">HIMALAYAN</span>
+                <span class="logo-sub">VAULT</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="login-wrapper">
+        <form id="loginForm" class="login-form">
+            <h2 class="form-title">Login</h2>
+            
+            <div class="form-group input-field">
+                <input type="text" id="username" name="username" placeholder="Username" required>
+                <label for="username">Username</label>
+            </div>
+
+            <div class="form-group input-field">
+                <input type="password" id="password" name="password" placeholder="Password" required>
+                <label for="password">Password</label>
+            </div>
+            
+            <div class="button-group">
+                <button type="submit" class="login-btn">LOG IN</button>
+                <button type="button" class="biometric-btn" id="biometricBtn" title="Biometric Authentication">
+                    BIO
+                </button>
+            </div>
+            
+            <div class="form-links">
+                <a href="forgot-password.html" class="link">Forgot Password</a>
+                <a href="signup.html" class="link">Sign Up</a>
+            </div>
+        </form>
+    </div>
+
+    <script src="login.js"></script>
+</body>
+</html>

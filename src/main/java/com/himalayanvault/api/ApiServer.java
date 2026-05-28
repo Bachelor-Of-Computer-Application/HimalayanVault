@@ -31,7 +31,8 @@ import com.sun.net.httpserver.HttpServer;
 public class ApiServer {
 
     private static final String LOCALHOST = "127.0.0.1";
-    private static final int PORT = 8443;
+    // default desired port; will fall back to an ephemeral port if already in use
+    private int port = 8443;
     private static final int THREAD_POOL_SIZE = 10;
 
     private HttpServer server;
@@ -42,10 +43,18 @@ public class ApiServer {
      * Create and configure the API server.
      */
     public ApiServer() throws Exception {
-        // Create HTTP server bound to localhost only
-        InetSocketAddress address = new InetSocketAddress(LOCALHOST, PORT);
-        this.server = HttpServer.create(address, 50);  // Backlog of 50
-        
+        // Try to bind to the configured port; if it's in use, fall back to an ephemeral port
+        try {
+            InetSocketAddress address = new InetSocketAddress(LOCALHOST, port);
+            this.server = HttpServer.create(address, 50);  // Backlog of 50
+        } catch (java.net.BindException be) {
+            System.err.println("[ApiServer] Port " + port + " in use — falling back to an ephemeral port");
+            InetSocketAddress address = new InetSocketAddress(LOCALHOST, 0);
+            this.server = HttpServer.create(address, 50);
+            // update port to reflect the actual bound port
+            this.port = this.server.getAddress().getPort();
+        }
+
         // Set up thread pool for handling requests
         this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(THREAD_POOL_SIZE);
         this.server.setExecutor(executor);
@@ -53,7 +62,7 @@ public class ApiServer {
         // Register endpoints
         registerEndpoints();
 
-        System.out.println("[ApiServer] Server configured on " + LOCALHOST + ":" + PORT);
+        System.out.println("[ApiServer] Server configured on " + LOCALHOST + ":" + this.server.getAddress().getPort());
     }
 
     /**
@@ -94,7 +103,7 @@ public class ApiServer {
         try {
             server.start();
             running = true;
-            System.out.println("[ApiServer] ✓ Server started on http://" + LOCALHOST + ":" + PORT);
+            System.out.println("[ApiServer] ✓ Server started on http://" + LOCALHOST + ":" + this.server.getAddress().getPort());
             System.out.println("[ApiServer] Listening for Chrome extension requests...");
         } catch (Exception e) {
             System.err.println("[ApiServer] Failed to start server: " + e.getMessage());
@@ -145,7 +154,7 @@ public class ApiServer {
      * Get server address.
      */
     public String getAddress() {
-        return "http://" + LOCALHOST + ":" + PORT;
+        return "http://" + LOCALHOST + ":" + this.server.getAddress().getPort();
     }
 
     /**

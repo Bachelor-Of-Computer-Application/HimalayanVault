@@ -11,24 +11,27 @@ import com.himalayanvault.auth.BiometricHandler;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
+import javafx.geometry.Insets;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
 /**
- * LoginController — handles master password entry, biometric unlock,
  * password-strength display, attempt lockout, and navigation to vault.
  */
 public class LoginController implements Initializable {
@@ -39,11 +42,17 @@ public class LoginController implements Initializable {
     @FXML private TextField     visibleField;
     @FXML private Button        eyeButton;
     @FXML private Button        unlockButton;
+    @FXML private StackPane     rootPane;
+    @FXML private VBox          formWrapper;
+    @FXML private HBox          headerSection;
+    @FXML private Label         formTitle;
+    @FXML private HBox          buttonContainer;
+    @FXML private HBox          linksContainer;
 
     @FXML private Rectangle seg1, seg2, seg3, seg4;
     @FXML private Label     strengthLabel;
 
-    @FXML private HBox  warnBox;
+    @FXML private HBox warnBox;
     @FXML private Label warnLabel;
 
     // ── Constants ─────────────────────────────────────────────────────
@@ -67,6 +76,8 @@ public class LoginController implements Initializable {
     // ─────────────────────────────────────────────────────────────────
     @Override
     public void initialize(URL url, ResourceBundle rb) {
+        makeLayoutResponsive();
+
         // Sync PasswordField ↔ TextField for eye toggle
         passwordField.textProperty().addListener((obs, old, val) -> {
             if (!passwordVisible) {
@@ -83,6 +94,65 @@ public class LoginController implements Initializable {
 
         // Auto-focus password field
         Platform.runLater(() -> passwordField.requestFocus());
+    }
+
+    private void makeLayoutResponsive() {
+        usernameField.setMaxWidth(Double.MAX_VALUE);
+        passwordField.setMaxWidth(Double.MAX_VALUE);
+        visibleField.setMaxWidth(Double.MAX_VALUE);
+        unlockButton.setMaxWidth(Double.MAX_VALUE);
+        warnBox.setMaxWidth(Double.MAX_VALUE);
+
+        rootPane.sceneProperty().addListener((obs, oldScene, scene) -> {
+            if (scene == null) {
+                return;
+            }
+
+            ChangeListener<Number> resizeListener = (change, oldValue, newValue) ->
+                applyResponsiveLayout(scene.getWidth());
+
+            scene.widthProperty().addListener(resizeListener);
+            scene.heightProperty().addListener(resizeListener);
+            Platform.runLater(() -> applyResponsiveLayout(scene.getWidth()));
+        });
+    }
+
+    private void applyResponsiveLayout(double sceneWidth) {
+        double width = Math.max(sceneWidth, 320);
+        boolean compact = width < 560;
+
+        double cardWidth = compact ? Math.min(width - 24, 320) : Math.min(width * 0.38, 420);
+        double contentWidth = Math.max(220, cardWidth - 24);
+        double edgePadding = compact ? 14 : 40;
+
+        headerSection.setPadding(new Insets(compact ? 16 : 20, edgePadding, compact ? 16 : 20, edgePadding));
+        headerSection.setSpacing(compact ? 10 : 12);
+        formWrapper.setMaxWidth(cardWidth);
+        formWrapper.setPrefWidth(cardWidth);
+        formWrapper.setSpacing(compact ? 8 : 10);
+        formWrapper.setPadding(new Insets(compact ? 8 : 10, compact ? 16 : 20, compact ? 12 : 14, compact ? 16 : 20));
+
+        usernameField.setPrefWidth(contentWidth);
+        passwordField.setPrefWidth(contentWidth);
+        visibleField.setPrefWidth(contentWidth);
+        warnBox.setMaxWidth(contentWidth);
+
+        buttonContainer.setSpacing(compact ? 8 : 12);
+        buttonContainer.setMaxWidth(contentWidth);
+        linksContainer.setSpacing(compact ? 10 : 16);
+        linksContainer.setMaxWidth(contentWidth);
+
+        if (formTitle != null) {
+            formTitle.setStyle(compact
+                ? "-fx-font-size: 14px; -fx-font-weight: 700; -fx-letter-spacing: 1px;"
+                : "-fx-font-size: 16px; -fx-font-weight: 700; -fx-letter-spacing: 2px;");
+        }
+
+        if (compact) {
+            VBox.setMargin(formWrapper, new Insets(0, 12, 12, 12));
+        } else {
+            VBox.setMargin(formWrapper, new Insets(0, 20, 18, 20));
+        }
     }
 
     // ── Unlock ────────────────────────────────────────────────────────
@@ -153,7 +223,7 @@ public class LoginController implements Initializable {
 
     // ── Recovery ──────────────────────────────────────────────────────
     @FXML
-    private void handleRecovery(MouseEvent event) {
+    private void handleRecovery(ActionEvent event) {
         try {
             FXMLLoader loader = new FXMLLoader(
                 getClass().getResource("/fxml/recovery.fxml")
@@ -184,7 +254,7 @@ public class LoginController implements Initializable {
             visibleField.setManaged(true);
             passwordField.setVisible(false);
             passwordField.setManaged(false);
-            eyeButton.setText("🙈");
+            eyeButton.setText("HIDE");
             Platform.runLater(() -> {
                 visibleField.requestFocus();
                 visibleField.positionCaret(visibleField.getText().length());
@@ -195,7 +265,7 @@ public class LoginController implements Initializable {
             passwordField.setManaged(true);
             visibleField.setVisible(false);
             visibleField.setManaged(false);
-            eyeButton.setText("👁");
+            eyeButton.setText("SHOW");
             Platform.runLater(() -> {
                 passwordField.requestFocus();
                 passwordField.positionCaret(passwordField.getText().length());
@@ -206,8 +276,8 @@ public class LoginController implements Initializable {
     // ── Strength Bar ──────────────────────────────────────────────────
     private void updateStrengthBar(String password) {
         if (password == null || password.isEmpty()) {
-            setAllSegments(EMPTY_COLOR);
-            strengthLabel.setText("");
+            if (seg1 != null) setAllSegments(EMPTY_COLOR);
+            if (strengthLabel != null) strengthLabel.setText("");
             return;
         }
 
@@ -227,12 +297,23 @@ public class LoginController implements Initializable {
             default -> { color = EMPTY_COLOR; label = ""; }
         }
 
+        // If any strength rectangle is missing, avoid touching them to prevent NPEs
+        if (seg1 == null || seg2 == null || seg3 == null || seg4 == null) {
+            if (strengthLabel != null) {
+                strengthLabel.setText("Strength: " + label);
+                strengthLabel.setStyle("-fx-text-fill: " + color + ";");
+            }
+            return;
+        }
+
         Rectangle[] segs = { seg1, seg2, seg3, seg4 };
         for (int i = 0; i < 4; i++) {
             segs[i].setFill(Color.web(i < score ? color : EMPTY_COLOR));
         }
-        strengthLabel.setText("Strength: " + label);
-        strengthLabel.setStyle("-fx-text-fill: " + color + ";");
+        if (strengthLabel != null) {
+            strengthLabel.setText("Strength: " + label);
+            strengthLabel.setStyle("-fx-text-fill: " + color + ";");
+        }
     }
 
     private void setAllSegments(String hex) {
@@ -277,7 +358,9 @@ public class LoginController implements Initializable {
             VaultController controller = loader.getController();
             controller.setUsername(username);
             Stage stage = (Stage) unlockButton.getScene().getWindow();
-            stage.setScene(new Scene(root, 900, 620));
+            Scene scene = new Scene(root, 900, 620);
+            scene.getStylesheets().add(getClass().getResource("/css/login.css").toExternalForm());
+            stage.setScene(scene);
             stage.setTitle("Himalayan Vault");
         } catch (IOException e) {
             showWarning("Could not load vault screen: " + e.getMessage(), false);
@@ -285,14 +368,16 @@ public class LoginController implements Initializable {
     }
 
     @FXML
-    private void navigateToSignup(MouseEvent event) {
+    private void navigateToSignup(ActionEvent event) {
         try {
             FXMLLoader loader = new FXMLLoader(
                 getClass().getResource("/fxml/signup.fxml")
             );
             Parent root = loader.load();
             Stage stage = (Stage) unlockButton.getScene().getWindow();
-            stage.setScene(new Scene(root, 420, 540));
+            Scene scene = new Scene(root, 420, 540);
+            scene.getStylesheets().add(getClass().getResource("/css/login.css").toExternalForm());
+            stage.setScene(scene);
             stage.setTitle("Himalayan Vault - Create New Vault");
         } catch (IOException e) {
             showWarning("Could not load signup screen: " + e.getMessage(), false);
@@ -330,14 +415,14 @@ public class LoginController implements Initializable {
 
     // ── Shake animation ───────────────────────────────────────────────
     private void shakeField() {
-        HBox wrap = (HBox) passwordField.getParent();
+        // Shake the password field directly
         Timeline shake = new Timeline(
-            new KeyFrame(Duration.millis(0),   e -> wrap.setTranslateX(0)),
-            new KeyFrame(Duration.millis(50),  e -> wrap.setTranslateX(-6)),
-            new KeyFrame(Duration.millis(100), e -> wrap.setTranslateX(6)),
-            new KeyFrame(Duration.millis(150), e -> wrap.setTranslateX(-4)),
-            new KeyFrame(Duration.millis(200), e -> wrap.setTranslateX(4)),
-            new KeyFrame(Duration.millis(250), e -> wrap.setTranslateX(0))
+            new KeyFrame(Duration.millis(0),   e -> passwordField.setTranslateX(0)),
+            new KeyFrame(Duration.millis(50),  e -> passwordField.setTranslateX(-6)),
+            new KeyFrame(Duration.millis(100), e -> passwordField.setTranslateX(6)),
+            new KeyFrame(Duration.millis(150), e -> passwordField.setTranslateX(-4)),
+            new KeyFrame(Duration.millis(200), e -> passwordField.setTranslateX(4)),
+            new KeyFrame(Duration.millis(250), e -> passwordField.setTranslateX(0))
         );
         shake.play();
     }

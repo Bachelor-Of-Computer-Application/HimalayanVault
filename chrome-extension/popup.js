@@ -32,7 +32,7 @@ async function checkApiServer() {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('🚀 Popup initialized');
+  console.log('Popup initialized');
   
   // Apply dark theme if system prefers it
   if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -42,10 +42,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Check if API server is running
   const apiRunning = await checkApiServer();
   if (!apiRunning) {
-    console.warn('⚠️ API server is not running');
+    console.warn(' API server is not running');
     const errorDiv = document.getElementById('loginError');
     if (errorDiv) {
-      errorDiv.innerHTML = '⚠️ <strong>API Server Not Running</strong><br><small>Start the Himalayan Vault desktop app or run:<br>java -jar target/himalayan-vault-1.0.0-fat.jar</small>';
+      errorDiv.innerHTML = ' <strong>API Server Not Running</strong><br><small>Start the Himalayan Vault desktop app or run:<br>java -jar target/himalayan-vault-1.0.0-fat.jar</small>';
       errorDiv.style.display = 'block';
     }
   }
@@ -61,125 +61,92 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// Login form submission
-loginForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  
-  const username = document.getElementById('username').value;
-  const password = document.getElementById('password').value;
-  const errorDiv = document.getElementById('loginError');
-  
-  try {
-    errorDiv.style.display = 'none';
-    
-    const response = await chrome.runtime.sendMessage({
-      action: 'login',
-      username,
-      password
-    });
-    
-    if (response.success) {
-      loginForm.reset();
-      showMainPanel(username);
-      loadCredentials();
-    } else {
-      errorDiv.textContent = response.error || response.message;
-      errorDiv.style.display = 'block';
-    }
-  } catch (error) {
-    errorDiv.textContent = 'Extension error: ' + error.message;
-    errorDiv.style.display = 'block';
-  }
-});
-
 // Logout
-logoutBtn.addEventListener('click', async () => {
-  if (confirm('Are you sure you want to logout?')) {
-    const response = await chrome.runtime.sendMessage({ action: 'logout' });
-    if (response.success) {
-      showLoginPanel();
-      credentialsList.innerHTML = '';
+if (logoutBtn) {
+  logoutBtn.addEventListener('click', async () => {
+    if (confirm('Are you sure you want to logout?')) {
+      const response = await chrome.runtime.sendMessage({ action: 'logout' });
+      if (response.success) {
+        showLoginPanel();
+        if (credentialsList) credentialsList.innerHTML = '';
+      }
     }
-  }
-});
+  });
+}
 
 // Generate password
-generateBtn.addEventListener('click', async () => {
-  const length = parseInt(document.getElementById('pwLength').value) || 16;
-  const options = {
-    length,
-    useUppercase: document.getElementById('pwUppercase').checked,
-    useLowercase: document.getElementById('pwLowercase').checked,
-    useNumbers: document.getElementById('pwNumbers').checked,
-    useSpecialChars: document.getElementById('pwSpecialChars').checked
-  };
-  
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'generatePassword',
-      options
-    });
-    
-    if (response.success) {
-      document.getElementById('generatedPassword').innerHTML = `
-        <strong>Generated Password:</strong><br>
-        <code>${response.password}</code>
-      `;
-      // Copy to clipboard
-      navigator.clipboard.writeText(response.password).then(() => {
-        console.log('Password copied to clipboard');
+if (generateBtn) {
+  generateBtn.addEventListener('click', async () => {
+    const lengthEl = document.getElementById('pwLength');
+    const length = lengthEl ? parseInt(lengthEl.value) || 16 : 16;
+    const options = {
+      length,
+      useUppercase: !!(document.getElementById('pwUppercase') && document.getElementById('pwUppercase').checked),
+      useLowercase: !!(document.getElementById('pwLowercase') && document.getElementById('pwLowercase').checked),
+      useNumbers: !!(document.getElementById('pwNumbers') && document.getElementById('pwNumbers').checked),
+      useSpecialChars: !!(document.getElementById('pwSpecialChars') && document.getElementById('pwSpecialChars').checked)
+    };
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'generatePassword',
+        options
       });
-    } else {
-      alert('Error: ' + response.error);
+
+      if (response && response.success) {
+        const genEl = document.getElementById('generatedPassword');
+        if (genEl) genEl.innerHTML = `<strong>Generated Password:</strong><br><code>${response.password}</code>`;
+        navigator.clipboard.writeText(response.password).catch(() => {});
+      } else {
+        alert('Error: ' + (response && response.error));
+      }
+    } catch (error) {
+      alert('Error generating password: ' + error.message);
     }
-  } catch (error) {
-    alert('Error generating password: ' + error.message);
-  }
-});
+  });
+}
 
 // Quick save from recently captured login
 let capturedLoginCredentials = null;
 
 // Login form submission - capture credentials
-loginForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  
-  const username = document.getElementById('username').value;
-  const password = document.getElementById('password').value;
-  
-  // Store for potential quick save after login
-  capturedLoginCredentials = { username, password };
-  
-  const errorDiv = document.getElementById('loginError');
-  errorDiv.style.display = 'none';
-  
-  try {
-    errorDiv.style.display = 'none';
-    
-    const response = await chrome.runtime.sendMessage({
-      action: 'login',
-      username,
-      password
-    });
-    
-    if (response.success) {
-      loginForm.reset();
-      showMainPanel(username);
-      loadCredentials();
-      
-      // Show quick save option
-      showQuickSaveOption();
-    } else {
-      errorDiv.textContent = response.error || response.message;
-      errorDiv.style.display = 'block';
+if (loginForm) {
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const usernameEl = document.getElementById('username');
+    const passwordEl = document.getElementById('password');
+    const username = usernameEl ? usernameEl.value : '';
+    const password = passwordEl ? passwordEl.value : '';
+
+    capturedLoginCredentials = { username, password };
+
+    const errorDiv = document.getElementById('loginError');
+    if (errorDiv) errorDiv.style.display = 'none';
+
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'login', username, password });
+      if (response && response.success) {
+        if (loginForm.reset) loginForm.reset();
+        showMainPanel(username);
+        loadCredentials();
+        showQuickSaveOption();
+      } else {
+        if (errorDiv) {
+          errorDiv.textContent = response && (response.error || response.message) ? (response.error || response.message) : 'Login failed';
+          errorDiv.style.display = 'block';
+        }
+        capturedLoginCredentials = null;
+      }
+    } catch (error) {
+      if (errorDiv) {
+        errorDiv.textContent = 'Extension error: ' + error.message;
+        errorDiv.style.display = 'block';
+      }
       capturedLoginCredentials = null;
     }
-  } catch (error) {
-    errorDiv.textContent = 'Extension error: ' + error.message;
-    errorDiv.style.display = 'block';
-    capturedLoginCredentials = null;
-  }
-});
+  });
+}
 
 // Show quick save prompt after login
 function showQuickSaveOption() {
@@ -195,7 +162,7 @@ function showQuickSaveOption() {
       promptDiv.className = 'quick-save-prompt';
       promptDiv.innerHTML = `
         <div class="quick-save-content">
-          <h4>💾 Quick Save Login?</h4>
+          <h4>Quick Save Login?</h4>
           <p>Save the login credentials for <strong>${hostname}</strong>?</p>
           <div class="quick-save-actions">
             <button class="btn btn-primary" id="quickSaveYes">Yes, Save</button>
@@ -238,7 +205,7 @@ async function quickSaveLoginCredentials(hostname) {
     if (response.success) {
       const feedback = document.createElement('div');
       feedback.className = 'copy-feedback';
-      feedback.textContent = '✅ Credentials saved!';
+      feedback.textContent = ' Credentials saved!';
       document.body.appendChild(feedback);
       setTimeout(() => feedback.remove(), 2000);
       
@@ -253,52 +220,54 @@ async function quickSaveLoginCredentials(hostname) {
 }
 
 // Save new credential
-newCredForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  
-  const errorDiv = document.getElementById('saveError');
-  errorDiv.style.display = 'none';
-  
-  // Check if logged in first
-  const loginCheck = await chrome.runtime.sendMessage({ action: 'isLoggedIn' });
-  if (!loginCheck.loggedIn) {
-    errorDiv.textContent = '❌ You must be logged in to save credentials. Please login first.';
-    errorDiv.style.display = 'block';
-    return;
-  }
-  
-  const credential = {
-    siteName: document.getElementById('siteName').value,
-    siteUrl: document.getElementById('siteUrl').value,
-    siteUsername: document.getElementById('siteUsername').value,
-    encryptedPassword: document.getElementById('sitePassword').value, // Should be encrypted on client
-    notes: document.getElementById('siteNotes').value
-  };
-  
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'saveCredential',
-      credential
-    });
-    
-    if (response.success) {
-      const successDiv = document.createElement('div');
-      successDiv.className = 'success';
-      successDiv.textContent = '✅ Credential saved successfully!';
-      errorDiv.parentNode.insertBefore(successDiv, errorDiv);
-      setTimeout(() => successDiv.remove(), 3000);
-      
-      newCredForm.reset();
-      loadCredentials();
-    } else {
-      errorDiv.textContent = '❌ ' + (response.error || 'Failed to save credential');
-      errorDiv.style.display = 'block';
+if (newCredForm) {
+  newCredForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const errorDiv = document.getElementById('saveError');
+    if (errorDiv) errorDiv.style.display = 'none';
+
+    const loginCheck = await chrome.runtime.sendMessage({ action: 'isLoggedIn' });
+    if (!loginCheck || !loginCheck.loggedIn) {
+      if (errorDiv) {
+        errorDiv.textContent = 'You must be logged in to save credentials. Please login first.';
+        errorDiv.style.display = 'block';
+      }
+      return;
     }
-  } catch (error) {
-    errorDiv.textContent = '❌ Error saving credential: ' + error.message;
-    errorDiv.style.display = 'block';
-  }
-});
+
+    const credential = {
+      siteName: document.getElementById('siteName') ? document.getElementById('siteName').value : '',
+      siteUrl: document.getElementById('siteUrl') ? document.getElementById('siteUrl').value : '',
+      siteUsername: document.getElementById('siteUsername') ? document.getElementById('siteUsername').value : '',
+      encryptedPassword: document.getElementById('sitePassword') ? document.getElementById('sitePassword').value : '',
+      notes: document.getElementById('siteNotes') ? document.getElementById('siteNotes').value : ''
+    };
+
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'saveCredential', credential });
+      if (response && response.success) {
+        const successDiv = document.createElement('div');
+        successDiv.className = 'success';
+        successDiv.textContent = ' Credential saved successfully!';
+        if (errorDiv && errorDiv.parentNode) errorDiv.parentNode.insertBefore(successDiv, errorDiv);
+        setTimeout(() => successDiv.remove(), 3000);
+        if (newCredForm.reset) newCredForm.reset();
+        loadCredentials();
+      } else {
+        if (errorDiv) {
+          errorDiv.textContent = 'Error: ' + (response && response.error ? response.error : 'Failed to save credential');
+          errorDiv.style.display = 'block';
+        }
+      }
+    } catch (error) {
+      if (errorDiv) {
+        errorDiv.textContent = 'Error saving credential: ' + error.message;
+        errorDiv.style.display = 'block';
+      }
+    }
+  });
+}
 
 // Load and display credentials
 async function loadCredentials() {
@@ -334,9 +303,9 @@ function displayCredentials(credentials) {
       <p><strong>Username:</strong> <span class="username-value">${cred.siteUsername}</span></p>
       ${cred.notes ? `<p><strong>Notes:</strong> ${cred.notes}</p>` : ''}
       <div class="actions">
-        <button class="btn btn-secondary btn-copy" data-username="${escapeHtml(cred.siteUsername)}">📋 Copy Username</button>
-        <button class="btn btn-secondary btn-autofill" data-credential-index="${index}">🔐 Autofill</button>
-        <button class="btn btn-secondary btn-delete" data-credential-id="${cred.id}">🗑️ Delete</button>
+        <button class="btn btn-secondary btn-copy" data-username="${escapeHtml(cred.siteUsername)}">Copy Username</button>
+        <button class="btn btn-secondary btn-autofill" data-credential-index="${index}">Autofill</button>
+        <button class="btn btn-secondary btn-delete" data-credential-id="${cred.id}">Delete</button>
       </div>
     </div>
   `).join('');
@@ -383,7 +352,7 @@ function copyToClipboard(text, message = 'Copied to clipboard!') {
     // Show success feedback
     const feedback = document.createElement('div');
     feedback.className = 'copy-feedback';
-    feedback.textContent = '✅ ' + message;
+    feedback.textContent = ' ' + message;
     document.body.appendChild(feedback);
     setTimeout(() => feedback.remove(), 2000);
   }).catch(err => {
@@ -410,7 +379,7 @@ async function autofillPage(credential) {
     // Show success message
     const feedback = document.createElement('div');
     feedback.className = 'copy-feedback';
-    feedback.textContent = '✅ Credential auto-filled!';
+    feedback.textContent = ' Credential auto-filled!';
     document.body.appendChild(feedback);
     setTimeout(() => feedback.remove(), 2000);
   } catch (error) {

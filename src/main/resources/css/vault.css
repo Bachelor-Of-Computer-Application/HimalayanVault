@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 .top-bar {
-    -fx-background-color: linear-gradient(to right, #1a1a2e 0%, #16213e 100%);
+    -fx-background-color: #16213e;
     -fx-padding: 12px 20px;
     -fx-border-color: #0f3460;
     -fx-border-width: 0 0 1 0;
@@ -102,7 +102,7 @@
 /* ── Buttons ── */
 .btn-primary {
     -fx-padding: 12px 24px;
-    -fx-background-color: linear-gradient(to right, #00d4ff 0%, #0099cc 100%);
+    -fx-background-color: #00d9ff;
     -fx-text-fill: #1a1a2e;
     -fx-font-size: 13px;
     -fx-font-weight: bold;
@@ -111,7 +111,7 @@
 }
 
 .btn-primary:hover {
-    -fx-background-color: linear-gradient(to right, #00e5ff 0%, #00b3e5 100%);
+    -fx-background-color: #00b3e5;
 }
 
 .btn-primary:pressed {

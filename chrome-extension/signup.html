@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Himalayan Vault - Sign Up</title>
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="login.css">
+    <link rel="stylesheet" href="signup.css">
+</head>
+<body class="signup-page">
+    <div class="background-container">
+        <img src="icons/background_image.png" alt="Background" class="background-image">
+    </div>
+
+    <header class="header">
+        <div class="logo-container">
+            <img src="icons/icon.png" alt="Himalayan Vault" class="logo-icon">
+            <div class="logo-text">
+                <span class="logo-main">HIMALAYAN</span>
+                <span class="logo-sub">VAULT</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="login-wrapper">
+        <form id="signupForm" class="login-form">
+            <h2 class="form-title">✍️ Sign Up</h2>
+            
+            <div class="form-group input-field">
+                <input type="email" id="email" name="email" required placeholder="Email">
+                <label for="email">Email</label>
+            </div>
+
+            <div class="form-group input-field">
+                <input type="text" id="username" name="username" required placeholder="Username">
+                <label for="username">Username</label>
+            </div>
+
+            <div class="form-group input-field">
+                <input type="password" id="password" name="password" required placeholder="Password">
+                <label for="password">Password</label>
+            </div>
+
+            <div class="form-group input-field">
+                <input type="password" id="confirmPassword" name="confirmPassword" required placeholder="Confirm Password">
+                <label for="confirmPassword">Confirm Password</label>
+            </div>
+
+            <div class="password-strength" id="strengthIndicator">
+                <div class="strength-bar"></div>
+                <span class="strength-text">Password strength: weak</span>
+            </div>
+            
+            <div class="button-group">
+                <button type="submit" class="login-btn">SIGN UP</button>
+            </div>
+            
+            <div class="form-links">
+                <a href="login.html" class="link">Already have an account? Sign In</a>
+            </div>
+        </form>
+    </div>
+
+    <script src="signup.js"></script>
+</body>
+</html>

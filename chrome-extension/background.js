@@ -10,7 +10,7 @@ const API_TIMEOUT = 5000; // 5 seconds
 let sessionToken = null;
 let currentUsername = null;
 
-console.log('🚀 Himalayan Vault Service Worker initializing...');
+console.log(' Himalayan Vault Service Worker initializing...');
 
 /**
  * Restore session from storage
@@ -26,9 +26,9 @@ async function restoreSession() {
     if (result.sessionToken) {
       sessionToken = result.sessionToken;
       currentUsername = result.username;
-      console.log('✅ Restored session from storage for user:', currentUsername);
+      console.log('Restored session from storage for user:', currentUsername);
     } else {
-      console.log('ℹ️ No stored session found');
+      console.log('No stored session found');
       sessionToken = null;
       currentUsername = null;
     }
@@ -41,7 +41,7 @@ async function restoreSession() {
  * Initialize extension on install/update
  */
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('✅ Himalayan Vault extension installed/updated');
+  console.log(' Himalayan Vault extension installed/updated');
   restoreSession();
 });
 
@@ -52,7 +52,7 @@ restoreSession();
  * Handle messages from popup and content scripts
  */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('📨 Message received:', request.action, 'from', sender.id);
+  console.log('Message received:', request.action, 'from', sender.id);
   
   // Ensure session is restored before processing messages
   restoreSession().then(() => {
@@ -61,6 +61,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   try {
     switch (request.action) {
+      case 'signup':
+        handleSignup(request.email, request.username, request.password)
+          .then(sendResponse)
+          .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+
+      case 'sendRecoveryCode':
+        handleSendRecoveryCode(request.email)
+          .then(sendResponse)
+          .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+
+      case 'verifyRecoveryCode':
+        handleVerifyRecoveryCode(request.email, request.code)
+          .then(sendResponse)
+          .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+
+      case 'resetPassword':
+        handleResetPassword(request.email, request.newPassword)
+          .then(sendResponse)
+          .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+
       case 'login':
         handleLogin(request.username, request.password)
           .then(sendResponse)
@@ -98,7 +122,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
         
       case 'isLoggedIn':
-        console.log('🔐 Login status check: ' + (!!sessionToken ? 'logged in' : 'not logged in'));
+        console.log(' Login status check: ' + (!!sessionToken ? 'logged in' : 'not logged in'));
         sendResponse({ loggedIn: !!sessionToken, username: currentUsername });
         return false;
         
@@ -107,12 +131,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return false;
         
       default:
-        console.warn('⚠️ Unknown action:', request.action);
+        console.warn(' Unknown action:', request.action);
         sendResponse({ success: false, error: 'Unknown action: ' + request.action });
         return false;
     }
   } catch (error) {
-    console.error('❌ Message handler error:', error);
+    console.error(' Message handler error:', error);
     sendResponse({ success: false, error: error.message });
     return false;
   }
@@ -122,7 +146,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  * API Call Wrapper - with error handling and timeout
  */
 async function apiCall(endpoint, method = 'GET', body = null) {
-  console.log(`🌐 API Call: ${method} ${endpoint}`);
+  console.log(` API Call: ${method} ${endpoint}`);
   
   const options = {
     method,
@@ -143,16 +167,16 @@ async function apiCall(endpoint, method = 'GET', body = null) {
   
   try {
     // Check if API server is reachable
-    console.log(`🔍 Checking if API server is running at ${API_BASE}...`);
+    console.log(` Checking if API server is running at ${API_BASE}...`);
     
     const controller = new AbortController();
     timeoutId = setTimeout(() => {
-      console.warn('⚠️ Request timeout, aborting...');
+      console.warn(' Request timeout, aborting...');
       controller.abort();
     }, API_TIMEOUT);
     
     const fullUrl = `${API_BASE}${endpoint}`;
-    console.log(`📍 Full URL: ${fullUrl}`);
+    console.log(`Full URL: ${fullUrl}`);
     
     const response = await fetch(fullUrl, {
       ...options,
@@ -163,23 +187,23 @@ async function apiCall(endpoint, method = 'GET', body = null) {
       clearTimeout(timeoutId);
     }
     
-    console.log(`📦 Response status: ${response.status}`);
+    console.log(` Response status: ${response.status}`);
     
     let data;
     try {
       data = await response.json();
-      console.log(`📄 Response data:`, data);
+      console.log(` Response data:`, data);
     } catch (parseError) {
-      console.warn('⚠️ Failed to parse response as JSON:', parseError);
+      console.warn(' Failed to parse response as JSON:', parseError);
       data = { success: false, message: 'Invalid response format' };
     }
     
     if (!response.ok) {
-      console.warn(`⚠️ API Error (${response.status}):`, data.error || data.message);
+      console.warn(` API Error (${response.status}):`, data.error || data.message);
       throw new Error(data.error || data.message || `HTTP ${response.status}`);
     }
     
-    console.log(`✅ API Success: ${endpoint}`);
+    console.log(`API Success: ${endpoint}`);
     return data;
     
   } catch (error) {
@@ -188,18 +212,18 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     }
     
     if (error.name === 'AbortError') {
-      console.error('❌ API Timeout: Request was aborted after', API_TIMEOUT, 'ms');
-      console.error('⚠️ Is the API server running at ' + API_BASE + '?');
+      console.error(' API Timeout: Request was aborted after', API_TIMEOUT, 'ms');
+      console.error(' Is the API server running at ' + API_BASE + '?');
       throw new Error('API request timeout - Is the API server running at ' + API_BASE + '?');
     }
     
     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-      console.error('❌ Network Error: Cannot reach API server at', API_BASE);
-      console.error('📝 Make sure the API server is running: java -jar target/himalayan-vault-1.0.0-fat.jar');
+      console.error(' Network Error: Cannot reach API server at', API_BASE);
+      console.error(' Make sure the API server is running: java -jar target/himalayan-vault-1.0.0-fat.jar');
       throw new Error('Cannot connect to API server. Is it running at ' + API_BASE + '?');
     }
     
-    console.error('❌ API Error:', error.message);
+    console.error(' API Error:', error.message);
     throw error;
   }
 }
@@ -208,15 +232,15 @@ async function apiCall(endpoint, method = 'GET', body = null) {
  * Login - Authenticate with Himalayan Vault
  */
 async function handleLogin(username, password) {
-  console.log(`🔑 Attempting login for user: ${username}`);
+  console.log(` Attempting login for user: ${username}`);
   
   if (!username || !password) {
-    console.warn('⚠️ Login attempt with missing credentials');
+    console.warn(' Failed to login: Missing credentials');
     throw new Error('Username and password required');
   }
   
   try {
-    console.log(`🔍 Verifying API server is reachable...`);
+    console.log('Verifying API server is reachable...');
     
     const response = await apiCall('/login', 'POST', {
       username,
@@ -224,12 +248,12 @@ async function handleLogin(username, password) {
     });
     
     if (!response.success) {
-      console.warn('❌ Login failed:', response.message);
+      console.warn('Login failed:', response.message);
       throw new Error(response.message || 'Login failed');
     }
     
     if (!response.token) {
-      console.warn('❌ Login response missing token');
+      console.warn('Login response missing token');
       throw new Error('Server did not return a valid token');
     }
     
@@ -242,8 +266,8 @@ async function handleLogin(username, password) {
       username
     });
     
-    console.log(`✅ Login successful for user: ${username}`);
-    console.log(`✅ Session token stored and ready for API calls`);
+    console.log(`Login successful for user: ${username}`);
+    console.log('Session token stored and ready for API calls');
     
     return {
       success: true,
@@ -251,7 +275,7 @@ async function handleLogin(username, password) {
       username
     };
   } catch (error) {
-    console.error('❌ Login error:', error.message);
+    console.error('Login error:', error.message);
     sessionToken = null;
     currentUsername = null;
     
@@ -447,39 +471,114 @@ async function handleGeneratePassword(options = {}) {
  */
 async function checkApiHealth() {
   try {
-    console.log('💚 Checking API health...');
+    console.log(' Checking API health...');
     const response = await apiCall('/health');
     const isHealthy = response.status === true;
     if (isHealthy) {
-      console.log('✅ API server is healthy');
+      console.log(' API server is healthy');
     } else {
-      console.warn('⚠️ API server returned unhealthy status');
+      console.warn(' API server returned unhealthy status');
     }
     return isHealthy;
   } catch (error) {
-    console.error('❌ Health check failed:', error.message);
+    console.error(' Health check failed:', error.message);
     return false;
   }
 }
 
 // Initialize health check with alarm listener
-console.log('🔔 Setting up health check alarm...');
+console.log(' Setting up health check alarm...');
 if (chrome.alarms) {
   chrome.alarms.create('healthCheck', { periodInMinutes: 5 });
-  console.log('✅ Health check alarm created (every 5 minutes)');
+  console.log(' Health check alarm created (every 5 minutes)');
 
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'healthCheck') {
-      console.log('🔔 Health check alarm triggered');
+      console.log(' Health check alarm triggered');
       checkApiHealth().then(healthy => {
         if (!healthy) {
-          console.warn('⚠️ API server appears to be down');
+          console.warn(' API server appears to be down');
         }
       });
     }
   });
 } else {
-  console.warn('⚠️ chrome.alarms not available - health checks disabled');
+  console.warn(' chrome.alarms not available - health checks disabled');
 }
 
-console.log('✅ Himalayan Vault Service Worker ready!');
+console.log(' Himalayan Vault Service Worker ready!');
+
+// --- Simple in-memory recovery code store for extension-only flows ---
+const recoveryCodes = {}; // email -> { code, expires }
+
+async function handleSignup(email, username, password) {
+  console.log('Signup request for', email, username);
+  if (!email || !username || !password) {
+    throw new Error('Email, username and password are required');
+  }
+
+  // Basic validation; in a real deployment this should call the server.
+  if (!validateEmail(email)) {
+    throw new Error('Invalid email address');
+  }
+
+  // Simulate async signup processing
+  await new Promise(r => setTimeout(r, 400));
+
+  console.log(' Simulated signup success for', username);
+  return { success: true, message: 'Signup successful' };
+}
+
+async function handleSendRecoveryCode(email) {
+  console.log(' Sending recovery code to', email);
+  if (!email || !validateEmail(email)) {
+    throw new Error('Valid email required');
+  }
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expires = Date.now() + 15 * 60 * 1000; // 15 minutes
+  recoveryCodes[email] = { code, expires };
+
+  // In production this would email the code. Here we log it for debugging.
+  console.log(` Recovery code for ${email}: ${code} (expires in 15m)`);
+
+  await new Promise(r => setTimeout(r, 300));
+  return { success: true, message: 'Recovery code sent' };
+}
+
+async function handleVerifyRecoveryCode(email, code) {
+  console.log(' Verifying recovery code for', email);
+  if (!email || !code) throw new Error('Email and code required');
+
+  const record = recoveryCodes[email];
+  if (!record) return { success: false, error: 'No recovery code found for this email' };
+  if (Date.now() > record.expires) {
+    delete recoveryCodes[email];
+    return { success: false, error: 'Recovery code expired' };
+  }
+
+  if (record.code !== String(code)) return { success: false, error: 'Invalid code' };
+
+  // Mark verified (could set a short-lived token); here we reuse the code store
+  recoveryCodes[email].verified = true;
+  return { success: true, message: 'Code verified' };
+}
+
+async function handleResetPassword(email, newPassword) {
+  console.log(' Reset password for', email);
+  if (!email || !newPassword) throw new Error('Email and new password required');
+
+  const record = recoveryCodes[email];
+  if (!record || !record.verified) return { success: false, error: 'Email not verified' };
+
+  // In real system we'd update the database. Here we just clear the code and simulate success.
+  delete recoveryCodes[email];
+  await new Promise(r => setTimeout(r, 300));
+  console.log(' Password reset simulated for', email);
+  return { success: true, message: 'Password reset successful' };
+}
+
+function validateEmail(email) {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email);
+}

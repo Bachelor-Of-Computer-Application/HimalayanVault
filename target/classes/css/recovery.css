@@ -1,12 +1,12 @@
 /* ===== ROOT PANE ===== */
 .root-pane {
-    -fx-background-color: transparent;
+    -fx-background-color: #0a0812;
     -fx-font-family: "Open Sans", sans-serif;
 }
 
 /* ===== BACKGROUND GRADIENT ===== */
 .bg-pane {
-    -fx-background-color: transparent;
+    -fx-background-color: #0a0812;
     -fx-padding: 0;
 }
 
@@ -14,10 +14,9 @@
 .header-section {
     -fx-spacing: 14;
     -fx-padding: 24 40 24 40;
-    /* translucent but borderless */
-    -fx-background-color: rgba(10, 8, 18, 0.10);
-    -fx-border-color: transparent;
-    -fx-border-width: 0;
+        -fx-background-color: transparent;
+        -fx-border-color: transparent;
+        -fx-border-width: 0;
 }
 
 /* ===== LOGO STYLING ===== */
@@ -46,10 +45,6 @@
     -fx-padding: 40 60 60 60;
     -fx-spacing: 24;
     -fx-alignment: CENTER;
-    /* make signup pane a lighter translucent filled panel */
-    -fx-background-color: rgba(10, 8, 18, 0.24);
-    -fx-border-color: transparent;
-    -fx-border-width: 0;
 }
 
 /* ===== FORM TITLE ===== */
@@ -79,26 +74,6 @@
 
 .form-input-field:prompt-text-fill {
     -fx-text-fill: rgba(0, 217, 255, 0.5);
-}
-
-/* ===== PASSWORD STRENGTH INDICATOR ===== */
-.password-strength-container {
-    -fx-spacing: 12;
-    -fx-alignment: CENTER_LEFT;
-    -fx-max-width: 450;
-}
-
-.strength-label {
-    -fx-text-fill: rgba(0, 217, 255, 0.7);
-    -fx-font-size: 12px;
-    -fx-font-weight: 600;
-}
-
-.strength-bar {
-    -fx-min-width: 300;
-    -fx-min-height: 6;
-    -fx-background-color: rgba(0, 217, 255, 0.15);
-    -fx-background-radius: 3;
 }
 
 /* ===== BUTTON CONTAINER ===== */
@@ -176,9 +151,16 @@
     -fx-text-decoration: underline;
 }
 
+/* ===== STEP INDICATOR ===== */
+.step-indicator {
+    -fx-text-fill: rgba(0, 217, 255, 0.7);
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+}
+
 /* ===== WARNING BOX ===== */
 .warn-box {
-    -fx-background-color: rgba(226, 75, 74, 0.1);
+    -fx-background-color: rgba(226, 75, 74, 0.08);
     -fx-border-color: #E24B4A;
     -fx-border-width: 1;
     -fx-border-radius: 8;

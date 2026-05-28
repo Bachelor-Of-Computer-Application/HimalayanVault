@@ -1,0 +1,4 @@
+sed -i 's/-fx-background-color: #0f0c1a;/-fx-background-color: linear-gradient(to bottom right, #0a0812 0%, #15111e 50%, #0a0812 100%);/g' src/main/resources/css/login.css src/main/resources/css/signup.css src/main/resources/css/recovery.css
+sed -i 's/-fx-background-color: #00d9ff;/-fx-background-color: linear-gradient(to bottom right, #00e6ff 0%, #00d9ff 50%, #0099cc 100%);/g' src/main/resources/css/login.css src/main/resources/css/signup.css src/main/resources/css/recovery.css
+sed -i 's/-fx-background-color: #33ecff;/-fx-background-color: linear-gradient(to bottom right, #33ecff 0%, #00d9ff 50%, #0088dd 100%);/g' src/main/resources/css/login.css src/main/resources/css/signup.css src/main/resources/css/recovery.css
+sed -i 's/-fx-background-color: #0099cc;/-fx-background-color: linear-gradient(to bottom right, #0099cc 0%, #0088dd 50%, #007799 100%);/g' src/main/resources/css/login.css src/main/resources/css/signup.css src/main/resources/css/recovery.css

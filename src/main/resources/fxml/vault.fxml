@@ -14,11 +14,11 @@
     <top>
         <HBox styleClass="top-bar" alignment="CENTER_LEFT" spacing="15">
             <VBox.margin><Insets/></VBox.margin>
-            <Label styleClass="app-title" text="🔒 Himalayan Vault"/>
+            <Label styleClass="app-title" text="Himalayan Vault"/>
             <Separator orientation="VERTICAL"/>
             <Label styleClass="vault-status" text="✓ Vault Unlocked"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button styleClass="btn-secondary" text="🔒 Lock" onAction="#handleLock"/>
+            <Button styleClass="btn-secondary" text="Lock" onAction="#handleLock"/>
             <Button styleClass="btn-danger" text="⋯" onAction="#handleMenu"/>
         </HBox>
     </top>
@@ -37,17 +37,17 @@
             <!-- Feature cards -->
             <HBox spacing="15" alignment="CENTER">
                 <VBox styleClass="feature-card" alignment="CENTER" spacing="10">
-                    <Label text="🔐" styleClass="feature-icon"/>
+                    <Label text="Secure" styleClass="feature-icon"/>
                     <Label text="Encrypted Storage" styleClass="feature-name"/>
                     <Label text="Military-grade encryption" styleClass="feature-desc" wrapText="true"/>
                 </VBox>
                 <VBox styleClass="feature-card" alignment="CENTER" spacing="10">
-                    <Label text="🔑" styleClass="feature-icon"/>
+                    <Label text="Master" styleClass="feature-icon"/>
                     <Label text="Master Password" styleClass="feature-name"/>
                     <Label text="Single password unlocks all" styleClass="feature-desc" wrapText="true"/>
                 </VBox>
                 <VBox styleClass="feature-card" alignment="CENTER" spacing="10">
-                    <Label text="💾" styleClass="feature-icon"/>
+                    <Label text="Local" styleClass="feature-icon"/>
                     <Label text="Local Storage" styleClass="feature-name"/>
                     <Label text="Everything stays on your device" styleClass="feature-desc" wrapText="true"/>
                 </VBox>
@@ -56,14 +56,14 @@
             <!-- Quick actions -->
             <VBox alignment="CENTER" spacing="12" style="-fx-padding: 30;">
                 <Label styleClass="section-title" text="Quick Actions"/>
-                <Button styleClass="btn-primary" text="➕ Add New Password" maxWidth="200"/>
-                <Button styleClass="btn-secondary" text="📋 View All Passwords" maxWidth="200"/>
-                <Button styleClass="btn-secondary" text="⚙ Settings" maxWidth="200"/>
+                <Button styleClass="btn-primary" text="Add New Password" maxWidth="200"/>
+                <Button styleClass="btn-secondary" text="View All Passwords" maxWidth="200"/>
+                <Button styleClass="btn-secondary" text="Settings" maxWidth="200"/>
             </VBox>
 
             <!-- Info box -->
             <VBox styleClass="info-box" spacing="8" alignment="TOP_LEFT">
-                <Label text="ℹ Tip:" styleClass="info-title"/>
+                <Label text="Tip:" styleClass="info-title"/>
                 <Label text="Your vault data is stored locally in SQLite and encrypted with AES-256-GCM. Your master password is never stored." 
                        wrapText="true" styleClass="info-text"/>
             </VBox>

@@ -7,24 +7,49 @@
 </head>
 <body class="futuristic-bg">
     <!-- Login Screen -->
-    <div id="loginPanel" class="panel login-panel">
-        <div class="login-container">
-            <div class="logo-section">
-                <div class="logo-icon">🏔️</div>
-                <h2>Himalayan Vault</h2>
-                <p class="tagline">Secure Your Digital Life</p>
+    <div id="loginPanel" class="login-panel">
+        <div class="background-container">
+            <img src="icons/background_image.png" alt="Background" class="background-image">
+        </div>
+        
+        <!-- Logo - Top Left -->
+        <div class="logo-header">
+            <img src="icons/icon.png" alt="Himalayan Vault" class="logo-icon-img">
+            <div class="logo-text-col">
+                <span class="logo-main-text">HIMALAYAN</span>
+                <span class="logo-sub-text">VAULT</span>
             </div>
-            <form id="loginForm" class="login-form">
-                <div class="form-group">
-                    <input type="text" id="username" placeholder="Username" required>
+        </div>
+
+        <!-- Main Container -->
+        <div class="login-container">
+            <!-- Login Form -->
+            <form id="loginForm" class="login-box-form">
+                <h2 class="form-title">Login</h2>
+                
+                <!-- Email/Username Field -->
+                <div class="form-group-line">
+                    <input type="username" id="username" class="form-input-line" placeholder="Enter your username" required>
                 </div>
-                <div class="form-group">
-                    <input type="password" id="password" placeholder="Master Password" required>
+
+                <!-- Password Field -->
+                <div class="form-group-line">
+                    <input type="password" id="password" class="form-input-line" placeholder="Enter your password" required>
                 </div>
-                <div id="loginError" class="error" style="display:none;"></div>
-                <button type="submit" class="btn btn-primary btn-large">Login</button>
-                <div class="login-links">
-                    <a href="#" class="link-text">Forgot Password?</a>
+
+                <!-- Error Message -->
+                <div id="loginError" class="error-msg" style="display:none;"></div>
+
+                <!-- Login Button with Biometric Options -->
+                <div class="button-group-row">
+                    <button type="submit" class="login-btn-gradient">LOG IN</button>
+                    <button type="button" class="biometric-btn-glow fingerprint-btn" title="Biometric Authentication">BIO</button>
+                </div>
+
+                <!-- Footer Links -->
+                <div class="form-links-row">
+                    <a href="#" class="link-cyan">Forgot Password</a>
+                    <a href="#" class="link-cyan">Sign Up</a>
                 </div>
             </form>
         </div>

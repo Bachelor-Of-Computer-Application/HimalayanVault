@@ -1,147 +1,143 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
-<?import javafx.scene.image.*?>
-<?import javafx.geometry.*?>
-<?import javafx.scene.shape.*?>
-<?import javafx.scene.text.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.image.Image?>
 
-<StackPane xmlns="http://javafx.com/javafx"
+<StackPane fx:id="rootPane"
+           xmlns="http://javafx.com/javafx/21"
            xmlns:fx="http://javafx.com/fxml"
            fx:controller="com.himalayanvault.ui.LoginController"
-           styleClass="root-pane"
-           stylesheets="@../css/login.css">
+           styleClass="root-pane">
 
-    <!-- ── Background ── -->
-    <VBox alignment="CENTER" styleClass="bg-pane">
+    <!-- BACKGROUND IMAGE -->
+    <ImageView fitHeight="${rootPane.height}" fitWidth="${rootPane.width}" preserveRatio="false">
+        <image>
+            <Image url="@../images/background_image.png"/>
+        </image>
+    </ImageView>
 
-        <!-- ── Login Card ── -->
-        <VBox styleClass="login-card" maxWidth="380" minWidth="340">
+    <!-- BACKGROUND GRADIENT OVERLAY + CONTENT -->
+        <VBox alignment="TOP_CENTER"
+            spacing="0"
+            styleClass="bg-pane">
 
-            <!-- ── Card Header (dark navy) ── -->
-            <VBox styleClass="card-header" alignment="CENTER" spacing="10">
-                <!-- Shield icon circle -->
-                <StackPane styleClass="shield-circle">
-                    <Label styleClass="shield-icon" text="🔒"/>
-                </StackPane>
-                <Label styleClass="app-title" text="Himalayan Vault"/>
-                <Label styleClass="app-subtitle" text="Secure · Offline-First · Java Desktop"/>
+        <!-- TOP LOGO HEADER -->
+          <HBox fx:id="headerSection"
+              alignment="CENTER_LEFT"
+              spacing="12"
+              styleClass="header-section"
+              prefHeight="80"
+              VBox.vgrow="NEVER">
+
+            <HBox.margin>
+                <Insets top="20" left="40" right="40"/>
+            </HBox.margin>
+
+            <ImageView styleClass="logo-icon" fitHeight="50" fitWidth="50" preserveRatio="true">
+                <image>
+                    <Image url="@../images/icon.png"/>
+                </image>
+            </ImageView>
+
+            <VBox spacing="2">
+                <Label text="HIMALAYAN"
+                       styleClass="logo-text-main"/>
+                <Label text="VAULT"
+                       styleClass="logo-text-sub"/>
             </VBox>
+        </HBox>
 
-            <!-- ── Card Body ── -->
-            <VBox styleClass="card-body" spacing="0">
+          <!-- CENTER CONTENT - Form -->
+          <VBox fx:id="formWrapper"
+              alignment="BOTTOM_CENTER"
+              spacing="10"
+              styleClass="form-wrapper"
+              VBox.vgrow="ALWAYS"
+              style="-fx-padding: 8 0 12 0;">
 
-                <!-- Warning / Info banner (hidden by default) -->
-                <HBox fx:id="warnBox" styleClass="warn-box" alignment="CENTER_LEFT"
-                      spacing="8" managed="false" visible="false">
-                    <Label text="⚠" styleClass="warn-icon"/>
-                    <Label fx:id="warnLabel" styleClass="warn-text"
-                           text="Incorrect password." wrapText="true" HBox.hgrow="ALWAYS"/>
-                </HBox>
+            <!-- TITLE -->
+                 <Label fx:id="formTitle"
+                     text="Login"
+                     styleClass="form-title"/>
 
-                <!-- Username Label -->
-                <Label styleClass="field-label" text="Username"
-                       VBox.margin="$top8"/>
-
-                <!-- Username field -->
-                <TextField fx:id="usernameField"
-                          styleClass="password-input"
-                          promptText="Enter your username"
-                          HBox.hgrow="ALWAYS">
-                    <VBox.margin>
-                        <Insets bottom="12"/>
-                    </VBox.margin>
-                </TextField>
-
-                <!-- Master Password Label -->
-                <Label styleClass="field-label" text="Master Password"
-                       VBox.margin="$top8"/>
-
-                <!-- Password field + eye toggle -->
-                <HBox styleClass="input-wrap" alignment="CENTER_LEFT">
-                    <PasswordField fx:id="passwordField"
-                                  styleClass="password-input"
-                                  promptText="Enter master password"
-                                  HBox.hgrow="ALWAYS"
-                                  onAction="#handleUnlock"/>
-                    <TextField fx:id="visibleField"
-                               styleClass="password-input"
-                               promptText="Enter master password"
-                               HBox.hgrow="ALWAYS"
-                               visible="false" managed="false"
-                               onAction="#handleUnlock"/>
-                    <Button fx:id="eyeButton" styleClass="eye-btn"
-                            text="👁" onAction="#togglePasswordVisibility"
-                            focusTraversable="false"/>
-                </HBox>
-
-                <!-- Strength bar -->
-                <HBox fx:id="strengthBar" styleClass="strength-bar" spacing="4">
-                    <Rectangle fx:id="seg1" styleClass="strength-seg" width="1" height="4" HBox.hgrow="ALWAYS"/>
-                    <Rectangle fx:id="seg2" styleClass="strength-seg" width="1" height="4" HBox.hgrow="ALWAYS"/>
-                    <Rectangle fx:id="seg3" styleClass="strength-seg" width="1" height="4" HBox.hgrow="ALWAYS"/>
-                    <Rectangle fx:id="seg4" styleClass="strength-seg" width="1" height="4" HBox.hgrow="ALWAYS"/>
-                </HBox>
-                <Label fx:id="strengthLabel" styleClass="strength-label"
-                       text="" alignment="CENTER_RIGHT" maxWidth="Infinity"/>
-
-                <!-- Unlock button -->
-                <Button fx:id="unlockButton" styleClass="btn-primary"
-                        text="🔓  Unlock Vault"
-                        maxWidth="Infinity" onAction="#handleUnlock"
-                        defaultButton="true">
-                    <VBox.margin>
-                        <Insets top="16"/>
-                    </VBox.margin>
-                </Button>
-
-                <!-- Divider -->
-                <HBox styleClass="divider" alignment="CENTER" spacing="10">
-                    <Region HBox.hgrow="ALWAYS" styleClass="divider-line"/>
-                    <Label text="or" styleClass="divider-label"/>
-                    <Region HBox.hgrow="ALWAYS" styleClass="divider-line"/>
-                    <VBox.margin>
-                        <Insets top="14" bottom="14"/>
-                    </VBox.margin>
-                </HBox>
-
-                <!-- Biometric button -->
-                <Button styleClass="btn-secondary"
-                        text="👆  Biometric  (Windows Hello / Touch ID)"
-                        maxWidth="Infinity" onAction="#handleBiometric"/>
-
-                <!-- Recovery link -->
-                <Label styleClass="recovery-link"
-                       text="Forgot password? Use 16-word recovery code →"
-                       onMouseClicked="#handleRecovery"
-                       maxWidth="Infinity" alignment="CENTER">
-                    <VBox.margin>
-                        <Insets top="12"/>
-                    </VBox.margin>
-                </Label>
-
-                <!-- Sign Up link -->
-                <Label styleClass="recovery-link"
-                       text="Don't have a vault? Create one →"
-                       onMouseClicked="#navigateToSignup"
-                       maxWidth="Infinity" alignment="CENTER">
-                    <VBox.margin>
-                        <Insets top="8"/>
-                    </VBox.margin>
-                </Label>
-
-            </VBox>
-
-            <!-- ── Status Bar ── -->
-            <HBox styleClass="status-bar" alignment="CENTER_LEFT" spacing="8">
-                <Circle styleClass="status-dot" radius="4"/>
-                <Label styleClass="status-text" text="Vault encrypted · AES-256-GCM"
+            <!-- WARNING BOX -->
+            <HBox fx:id="warnBox"
+                  styleClass="warn-box"
+                  managed="false"
+                  visible="false"
+                  alignment="CENTER_LEFT"
+                  spacing="8">
+                <Label fx:id="warnLabel"
+                       text=""
+                       styleClass="warn-label"
+                       wrapText="true"
                        HBox.hgrow="ALWAYS"/>
-                <Label styleClass="status-shortcut" text="Ctrl+Shift+V  quick copy"/>
+            </HBox>
+
+            <!-- USERNAME FIELD -->
+            <TextField fx:id="usernameField"
+                       promptText="Enter your username"
+                       styleClass="form-input-field"/>
+
+            <!-- PASSWORD FIELD -->
+            <PasswordField fx:id="passwordField"
+                           promptText="Enter your password"
+                           styleClass="form-input-field"
+                           onAction="#handleUnlock"/>
+
+            <!-- VISIBLE PASSWORD FIELD (Hidden by default) -->
+            <TextField fx:id="visibleField"
+                       promptText="Enter your password"
+                       styleClass="form-input-field"
+                       managed="false"
+                       visible="false"/>
+
+            <!-- BUTTONS ROW -->
+            <HBox fx:id="buttonContainer"
+                alignment="CENTER"
+                spacing="12"
+                styleClass="button-container">
+
+                <!-- LOGIN BUTTON -->
+                <Button fx:id="unlockButton"
+                    text="LOG IN"
+                    styleClass="primary-button"
+                    onAction="#handleUnlock"
+                    prefHeight="32"
+                    HBox.hgrow="ALWAYS"/>
+
+                <!-- BIOMETRIC BUTTON -->
+                <Button fx:id="eyeButton"
+                    onAction="#handleBiometric"
+                    text="BIO"
+                        styleClass="biometric-button"
+                        prefWidth="34"
+                    prefHeight="32"/>
+            </HBox>
+
+            <!-- LINKS ROW -->
+            <HBox fx:id="linksContainer"
+                alignment="CENTER"
+                                    spacing="16"
+                styleClass="links-container">
+
+                <Hyperlink text="Forgot Password"
+                           styleClass="form-link"
+                           onAction="#handleRecovery"/>
+
+                <Label text="|"
+                       styleClass="link-separator"/>
+
+                <Hyperlink text="Sign Up"
+                           styleClass="form-link"
+                           onAction="#navigateToSignup"/>
             </HBox>
 
         </VBox>
 
     </VBox>
+
 </StackPane>

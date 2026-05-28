@@ -234,6 +234,7 @@ public class RecoveryController implements Initializable {
             Parent root = FXMLLoader.load(getClass().getResource(fxml));
             Stage stage = (Stage) step1.getScene().getWindow();
             Scene scene = new Scene(root, w, h);
+            scene.getStylesheets().add(getClass().getResource("/css/login.css").toExternalForm());
             stage.setScene(scene);
             stage.setResizable(true);
             stage.centerOnScreen();

@@ -1,0 +1,76 @@
+/* Signup Specific Styles — aligned with login.css responsive layout */
+
+/* Ensure the form uses the same box-sizing and fluid width rules */
+.login-form {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding: clamp(12px, 2.2vw, 16px);
+}
+
+.password-strength {
+  margin: 15px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.strength-bar {
+  height: 4px;
+  width: 100%;
+  background: rgba(0, 217, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.strength-bar::after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: 30%;
+  background: #ff6b6b;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+  background: linear-gradient(90deg, #ff6b6b, #ff8787);
+}
+
+.strength-text {
+  font-size: 12px;
+  color: #ff6b6b;
+  font-weight: 500;
+}
+
+/* Strength levels */
+.strength-bar.strong::after {
+  width: 100%;
+  background: linear-gradient(90deg, #51cf66, #69db7c);
+}
+
+.strength-bar.strong ~ .strength-text {
+  color: #51cf66;
+}
+
+.strength-bar.medium::after {
+  width: 66%;
+  background: linear-gradient(90deg, #ffd93d, #ffed4e);
+}
+
+.strength-bar.medium ~ .strength-text {
+  color: #ffd93d;
+}
+
+@media (max-width: 480px) {
+  .password-strength {
+    margin: 12px 0;
+  }
+
+  .strength-bar {
+    height: 3px;
+  }
+
+  .strength-text {
+    font-size: 10px;
+  }
+
+  .login-form { padding: 12px; }
+}

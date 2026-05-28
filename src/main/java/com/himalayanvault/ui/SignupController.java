@@ -161,7 +161,9 @@ public class SignupController implements Initializable {
         try {
             Parent root = FXMLLoader.load(getClass().getResource(fxml));
             Stage stage = (Stage) step1.getScene().getWindow();
-            stage.setScene(new Scene(root, w, h));
+            Scene scene = new Scene(root, w, h);
+            scene.getStylesheets().add(getClass().getResource("/css/login.css").toExternalForm());
+            stage.setScene(scene);
             stage.setResizable(w > 500);
             stage.centerOnScreen();
         } catch (IOException e) {
@@ -259,11 +261,11 @@ public class SignupController implements Initializable {
         open = !open;
         if (open) {
             tf.setText(pf.getText()); tf.setVisible(true); tf.setManaged(true);
-            pf.setVisible(false); pf.setManaged(false); btn.setText("🙈");
+            pf.setVisible(false); pf.setManaged(false); btn.setText("HIDE");
             Platform.runLater(() -> { tf.requestFocus(); tf.positionCaret(tf.getText().length()); });
         } else {
             pf.setText(tf.getText()); pf.setVisible(true); pf.setManaged(true);
-            tf.setVisible(false); tf.setManaged(false); btn.setText("👁");
+            tf.setVisible(false); tf.setManaged(false); btn.setText("SHOW");
             Platform.runLater(() -> { pf.requestFocus(); pf.positionCaret(pf.getText().length()); });
         }
         return open;
