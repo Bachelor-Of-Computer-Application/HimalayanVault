@@ -7,8 +7,7 @@ package com.himalayanvault.auth;
  * macOS Touch ID : via JNA calling LocalAuthentication framework
  * Linux PAM      : via libpam-java
  *
- * This stub always returns false; replace the body of authenticate()
- * with real JNA bindings when implementing.
+ * This integration is currently disabled and always returns false.
  */
 public class BiometricHandler {
 
@@ -31,29 +30,23 @@ public class BiometricHandler {
     }
 
     public boolean isAvailable() {
-        // TODO: check if the OS has enrolled biometrics
         return false;
     }
 
     // ── OS-specific stubs ─────────────────────────────────────────────
 
     private boolean authenticateWindowsHello() {
-        // TODO: JNA call to WinBio.dll
-        // WinBioVerify(sessionHandle, &identity, subFactor, &match, ...)
-        System.out.println("[Biometric] Windows Hello prompt triggered (stub)");
+        System.out.println("[Biometric] Windows Hello is not enabled in this build");
         return false;
     }
 
     private boolean authenticateTouchId() {
-        // TODO: JNA call to macOS LocalAuthentication
-        // LAContext.evaluatePolicy(LAPolicyDeviceOwnerAuthenticationWithBiometrics)
-        System.out.println("[Biometric] macOS Touch ID prompt triggered (stub)");
+        System.out.println("[Biometric] macOS Touch ID is not enabled in this build");
         return false;
     }
 
     private boolean authenticatePam() {
-        // TODO: libpam-java call
-        System.out.println("[Biometric] Linux PAM prompt triggered (stub)");
+        System.out.println("[Biometric] Linux PAM biometrics are not enabled in this build");
         return false;
     }
 }

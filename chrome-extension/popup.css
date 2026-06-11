@@ -117,13 +117,13 @@ body {
 .login-box-form {
     width: 100%;
     max-width: 340px;
-    background: rgba(10, 8, 18, 0.55);
-    backdrop-filter: blur(25px);
-    -webkit-backdrop-filter: blur(25px);
-    border: 1px solid rgba(0, 217, 255, 0.18);
-    box-shadow: 0 12px 48px rgba(0, 217, 255, 0.18),
+    /* background: rgba(10, 8, 18, 0.55); */
+    /* backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px); */
+    /* border: 1px solid rgba(0, 217, 255, 0.18); */
+    /* box-shadow: 0 12px 48px rgba(0, 217, 255, 0.18),
                 0 8px 28px rgba(0, 0, 0, 0.55),
-                inset 0 0 26px rgba(0, 217, 255, 0.08);
+                inset 0 0 26px rgba(0, 217, 255, 0.08); */
     border-radius: 18px;
     padding: clamp(22px, 6vw, 32px) clamp(20px, 6vw, 30px);
 }
@@ -140,6 +140,7 @@ body {
 /* Underline Inputs */
 .form-group-line {
     margin-bottom: 20px;
+    
 }
 
 .form-input-line {
@@ -155,6 +156,11 @@ body {
 
 .form-input-line:focus {
     outline: none;
+    border: none;
+    border-bottom: 2px solid #00e6ff;
+     background: rgba(255, 255, 255, 0.1);
+     color: #00e6ff;
+     text-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
     border-bottom-color: #00e6ff;
     box-shadow: 0 6px 14px -6px rgba(0, 217, 255, 0.5);
 }
@@ -183,12 +189,21 @@ body {
     text-transform: uppercase;
     letter-spacing: 2px;
     transition: all 0.3s ease;
+     /* border: 1px solid transparent; */
 }
 
 .login-btn-gradient:hover {
-    box-shadow: 0 14px 34px rgba(0, 217, 255, 0.65),
+    /* box-shadow: 0 14px 34px rgba(0, 217, 255, 0.65),
                 0 0 40px rgba(0, 217, 255, 0.35);
-    transform: translateY(-2px);
+    transform: translateY(-2px); */
+    border-color: rgba(255, 255, 255, 0.5);
+
+  /* border: 2px solid rgba(0, 217, 255, 0.8); */
+  color: #00e6ff;
+  box-shadow: 0 0 18px rgba(0, 217, 255, 0.5);
+  border: none;
+
+    
 }
 
 .biometric-btn-glow {
@@ -205,12 +220,16 @@ body {
     justify-content: center;
     transition: all 0.3s ease;
     box-shadow: 0 0 18px rgba(0, 217, 255, 0.25);
+     /* border: 1px solid transparent; */
 }
 
 .biometric-btn-glow:hover {
-    background: linear-gradient(135deg, rgba(0, 217, 255, 0.3), rgba(0, 217, 255, 0.12));
-    box-shadow: 0 0 28px rgba(0, 217, 255, 0.5);
-    transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.5);
+  background: transparent;
+  /* border: 2px solid rgba(0, 217, 255, 0.8); */
+  color: #00e6ff;
+  box-shadow: 0 0 18px rgba(0, 217, 255, 0.5);
+  border: none;
 }
 
 /* Links */
@@ -358,7 +377,6 @@ label {
 
 input[type="text"],
 input[type="password"],
-input[type="email"],
 input[type="url"],
 input[type="number"],
 textarea {
@@ -373,12 +391,12 @@ textarea {
     margin-bottom: 15px;
     transition: all 0.3s ease;
 }
-
+/* 
 .login-panel input[type="text"],
 .login-panel input[type="password"] {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1.5px solid rgba(0, 212, 255, 0.2);
-}
+    /* background: rgba(255, 255, 255, 0.08);
+    border: 1.5px solid rgba(0, 212, 255, 0.2); */
+/* } */ */
 
 input::placeholder {
     color: rgba(255, 255, 255, 0.6);

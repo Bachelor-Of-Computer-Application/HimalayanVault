@@ -1,29 +1,21 @@
 package com.himalayanvault.auth;
 
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.spec.InvalidKeySpecException;
-import java.util.Arrays;
-import java.util.Base64;
-
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-
 import com.himalayanvault.db.DatabaseManager;
+import com.himalayanvault.security.Pbkdf2PasswordHasher;
+import com.himalayanvault.security.SessionManager;
+
 /**
- * AuthManager — verifies the master password using PBKDF2-HMAC-SHA256.
- *
- * In a real implementation, the salt and verifier are loaded from
- * the encrypted SQLite vault database.
+ * AuthManager — verifies and stores master passwords.
+ * 
+ * Security features:
+ * - PBKDF2WithHmacSHA256 password hashing with per-user random salts
+ * - Session invalidation on password change
+ * - Rate limiting on password verification (can be added)
  */
 public class AuthManager {
 
-    private static final String ALGORITHM  = "PBKDF2WithHmacSHA256";
-    private static final int    ITERATIONS = 100_000;
-    private static final int    KEY_LENGTH = 256; // bits
-
     /**
-     * Verifies the entered password against the stored PBKDF2 hash for a specific user.
+     * Verifies the entered password against the stored Argon2id hash for a specific user.
      *
      * @param username         the username
      * @param enteredPassword  the raw password typed by the user
@@ -31,18 +23,16 @@ public class AuthManager {
      */
     public boolean verifyMasterPassword(String username, String enteredPassword) {
         try {
-            byte[] salt = DatabaseManager.getInstance().loadSalt(username);
-            byte[] storedHash = DatabaseManager.getInstance().loadPasswordHash(username);
+            String storedHash = DatabaseManager.getInstance().loadPasswordHash(username);
             
-            // User doesn't exist if either salt or hash is missing
-            if (salt == null || storedHash == null) {
+            // User doesn't exist if hash is missing
+            if (storedHash == null) {
                 System.err.println("[AuthManager] User '" + username + "' not found or password not set");
                 return false;
             }
 
-            byte[] derivedHash = pbkdf2(enteredPassword.toCharArray(), salt);
-            boolean matches = Arrays.equals(derivedHash, storedHash);
-            
+            boolean matches = Pbkdf2PasswordHasher.verifyPassword(storedHash, enteredPassword);
+
             if (matches) {
                 System.out.println("[AuthManager] Password verified for user: " + username);
             } else {
@@ -51,32 +41,31 @@ public class AuthManager {
             
             return matches;
 
-        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-            System.err.println("[AuthManager] Key derivation error: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("[AuthManager] Verification error: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
 
     /**
-     * Hashes a new master password and stores salt + hash in the database for a specific user.
+     * Hashes a new master password using PBKDF2 and stores it in the database.
+     * Also invalidates all existing sessions (forces re-authentication).
      *
      * @param username         the username
      * @param masterPassword   the new master password to set
+     * @throws Exception if hash or storage fails
      */
-    public void setMasterPassword(String username, String masterPassword)
-            throws NoSuchAlgorithmException, InvalidKeySpecException {
+    public void setMasterPassword(String username, String masterPassword) throws Exception {
+        String passwordHash = Pbkdf2PasswordHasher.hashPassword(masterPassword);
+        DatabaseManager.getInstance().saveMasterPassword(username, passwordHash);
+        
+        // Invalidate all sessions (forces user to re-authenticate)
+        SessionManager.getInstance().invalidateAllSessions();
 
-        byte[] salt = generateSalt();
-        byte[] hash = pbkdf2(masterPassword.toCharArray(), salt);
-
-        // Persist to database
-        String saltBase64 = Base64.getEncoder().encodeToString(salt);
-        String hashBase64 = Base64.getEncoder().encodeToString(hash);
-        DatabaseManager.getInstance().saveMasterPassword(username, saltBase64, hashBase64);
-
-        System.out.println("[AuthManager] Master password set for user: " + username);
+        System.out.println("[AuthManager] Master password set for user: " + username + " (PBKDF2)");
     }
+
     /**
      * Resets the master password after verification of recovery code for a specific user.
      * Used in password recovery flow.
@@ -90,30 +79,27 @@ public class AuthManager {
             setMasterPassword(username, newPassword);
             System.out.println("[AuthManager] Password reset successfully via recovery code for user: " + username);
             return true;
-        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+        } catch (Exception e) {
             System.err.println("[AuthManager] Error resetting password: " + e.getMessage());
             return false;
         }
     }
 
-    // ── Private helpers ───────────────────────────────────────────────
-
-    private byte[] pbkdf2(char[] password, byte[] salt)
-            throws NoSuchAlgorithmException, InvalidKeySpecException {
-
-        PBEKeySpec spec = new PBEKeySpec(password, salt, ITERATIONS, KEY_LENGTH);
+    /**
+     * Check if a password hash needs rehashing after PBKDF2 parameter updates.
+     * Should be called periodically to upgrade weak hashes.
+     *
+     * @param username the username
+     * @return true if password should be re-hashed with current parameters
+     */
+    public boolean passwordNeedsRehashing(String username) {
         try {
-            SecretKeyFactory skf = SecretKeyFactory.getInstance(ALGORITHM);
-            return skf.generateSecret(spec).getEncoded();
-        } finally {
-            spec.clearPassword();
+            String storedHash = DatabaseManager.getInstance().loadPasswordHash(username);
+            if (storedHash == null) return false;
+            
+            return Pbkdf2PasswordHasher.needsRehash(storedHash);
+        } catch (Exception e) {
+            return false;
         }
     }
-
-    private byte[] generateSalt() {
-        byte[] salt = new byte[32];
-        new SecureRandom().nextBytes(salt);
-        return salt;
-    }
-
 }

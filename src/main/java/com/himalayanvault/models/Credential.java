@@ -2,48 +2,52 @@ package com.himalayanvault.models;
 
 /**
  * Credential — represents a stored credential for a website/service.
+ * Supports multiple accounts per site using accountNumber field.
  */
 public class Credential {
     
-    private long id;
-    private String ownerUsername;
-    private String siteUrl;
-    private String siteName;
-    private String siteUsername;
-    private String encryptedPassword;  // AES-GCM encrypted
-    private String notes;
-    private String createdAt;
-    private String updatedAt;
+    // Public fields for JSON serialization/export
+    public long id;
+    public String ownerUsername;
+    public String siteUrl;
+    public String siteName;
+    public String siteUsername;
+    public int accountNumber = 1;          // Support multiple accounts per site
+    public String encryptedPassword;       // AES-GCM encrypted
+    public String notes;
+    public long created_at;                // Timestamp in milliseconds
+    public long updated_at;                // Timestamp in milliseconds
+
+    // Default constructor for JSON deserialization
+    public Credential() {
+    }
 
     public Credential(long id, String ownerUsername, String siteUrl, String siteName,
-                     String siteUsername, String encryptedPassword, String notes,
-                     String createdAt, String updatedAt) {
+                     String siteUsername, int accountNumber, String encryptedPassword, String notes,
+                     long createdAt, long updatedAt) {
         this.id = id;
         this.ownerUsername = ownerUsername;
         this.siteUrl = siteUrl;
         this.siteName = siteName;
         this.siteUsername = siteUsername;
+        this.accountNumber = accountNumber;
         this.encryptedPassword = encryptedPassword;
         this.notes = notes;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
+        this.created_at = createdAt;
+        this.updated_at = updatedAt;
     }
 
-    // Getters
-    public long getId() { return id; }
-    public String getOwnerUsername() { return ownerUsername; }
-    public String getSiteUrl() { return siteUrl; }
-    public String getSiteName() { return siteName; }
-    public String getSiteUsername() { return siteUsername; }
-    public String getEncryptedPassword() { return encryptedPassword; }
-    public String getNotes() { return notes; }
-    public String getCreatedAt() { return createdAt; }
-    public String getUpdatedAt() { return updatedAt; }
+    // Backward compatibility constructor (without accountNumber)
+    public Credential(long id, String ownerUsername, String siteUrl, String siteName,
+                     String siteUsername, String encryptedPassword, String notes,
+                     long createdAt, long updatedAt) {
+        this(id, ownerUsername, siteUrl, siteName, siteUsername, 1, encryptedPassword, notes, createdAt, updatedAt);
+    }
 
-    // Setters
-    public void setSiteUrl(String siteUrl) { this.siteUrl = siteUrl; }
-    public void setSiteName(String siteName) { this.siteName = siteName; }
-    public void setSiteUsername(String siteUsername) { this.siteUsername = siteUsername; }
-    public void setEncryptedPassword(String encryptedPassword) { this.encryptedPassword = encryptedPassword; }
-    public void setNotes(String notes) { this.notes = notes; }
+    @Override
+    public String toString() {
+        return String.format("Credential{id=%d, site=%s, username=%s, account=%d}", 
+            id, siteUrl, siteUsername, accountNumber);
+    }
 }
+

@@ -1,136 +1,200 @@
-// Signup page functionality
+// Signup page — creates vault via API and shows recovery words before login
 
 document.addEventListener('DOMContentLoaded', function() {
     const signupForm = document.getElementById('signupForm');
-    const emailInput = document.getElementById('email');
+    const recoveryStep = document.getElementById('recoveryStep');
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
     const confirmPasswordInput = document.getElementById('confirmPassword');
     const strengthIndicator = document.getElementById('strengthIndicator');
+    const signupError = document.getElementById('signupError');
+    const signupBtn = document.getElementById('signupBtn');
+    const recoveryWordsGrid = document.getElementById('recoveryWordsGrid');
+    const copyRecoveryBtn = document.getElementById('copyRecoveryBtn');
+    const recoverySavedCheck = document.getElementById('recoverySavedCheck');
+    const continueToLoginBtn = document.getElementById('continueToLoginBtn');
+    const recoveryError = document.getElementById('recoveryError');
 
-    // Password strength checker
+    let recoveryWords = [];
+
+    function meetsPasswordRequirements(password) {
+        return password.length >= 12
+            && /[A-Z]/.test(password)
+            && /[a-z]/.test(password)
+            && /[0-9]/.test(password)
+            && /[^A-Za-z0-9]/.test(password);
+    }
+
+    const RULE_LABELS = {
+        ruleLength: '12+ characters',
+        ruleCase: 'Upper and lower case',
+        ruleNumber: 'Contains a number',
+        ruleSpecial: 'Contains a special character'
+    };
+
+    function updatePasswordRules(password) {
+        setRuleState('ruleLength', password.length >= 12);
+        setRuleState('ruleCase', /[A-Z]/.test(password) && /[a-z]/.test(password));
+        setRuleState('ruleNumber', /[0-9]/.test(password));
+        setRuleState('ruleSpecial', /[^A-Za-z0-9]/.test(password));
+    }
+
+    function setRuleState(id, met) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('met', met);
+        el.textContent = (met ? '✓ ' : '○ ') + RULE_LABELS[id];
+    }
+
     function checkPasswordStrength(password) {
         let strength = 0;
-        
         if (password.length >= 8) strength++;
         if (password.length >= 12) strength++;
         if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
         if (/[0-9]/.test(password)) strength++;
         if (/[^a-zA-Z0-9]/.test(password)) strength++;
-
-        return Math.min(strength, 3); // 1: weak, 2: medium, 3: strong
+        return Math.min(strength, 3);
     }
 
     function updatePasswordStrength() {
         const password = passwordInput.value;
+        updatePasswordRules(password);
+
         const strength = checkPasswordStrength(password);
         const strengthBar = strengthIndicator.querySelector('.strength-bar');
         const strengthText = strengthIndicator.querySelector('.strength-text');
 
         strengthBar.classList.remove('weak', 'medium', 'strong');
-        
-        switch(strength) {
-            case 0:
-                strengthBar.classList.add('weak');
-                strengthText.textContent = 'Password strength: weak';
-                break;
-            case 1:
-                strengthBar.classList.add('medium');
-                strengthText.textContent = 'Password strength: medium';
-                break;
-            case 2:
-            case 3:
-                strengthBar.classList.add('strong');
-                strengthText.textContent = 'Password strength: strong';
-                break;
+
+        if (strength <= 1) {
+            strengthBar.classList.add('weak');
+            strengthText.textContent = 'Password strength: weak';
+        } else if (strength === 2) {
+            strengthBar.classList.add('medium');
+            strengthText.textContent = 'Password strength: medium';
+        } else {
+            strengthBar.classList.add('strong');
+            strengthText.textContent = 'Password strength: strong';
         }
     }
 
-    // Real-time password strength update
-    if (passwordInput) {
-        passwordInput.addEventListener('input', updatePasswordStrength);
+    function showError(el, message) {
+        el.textContent = message;
+        el.hidden = !message;
     }
 
-    // Form submission
+    function setLoading(loading) {
+        signupBtn.disabled = loading;
+        signupBtn.textContent = loading ? 'CREATING VAULT...' : 'SIGN UP';
+    }
+
+    function renderRecoveryWords(words) {
+        recoveryWordsGrid.innerHTML = '';
+        words.forEach((word, index) => {
+            const cell = document.createElement('div');
+            cell.className = 'recovery-word-cell';
+            cell.innerHTML = `<span class="recovery-word-num">${index + 1}.</span><span class="recovery-word-val">${word}</span>`;
+            recoveryWordsGrid.appendChild(cell);
+        });
+    }
+
+    function showRecoveryStep(words) {
+        recoveryWords = words;
+        renderRecoveryWords(words);
+        signupForm.hidden = true;
+        recoveryStep.hidden = false;
+    }
+
+    if (passwordInput) {
+        passwordInput.addEventListener('input', updatePasswordStrength);
+        updatePasswordRules('');
+    }
+
+    if (recoverySavedCheck) {
+        recoverySavedCheck.addEventListener('change', () => {
+            continueToLoginBtn.disabled = !recoverySavedCheck.checked;
+            showError(recoveryError, '');
+        });
+    }
+
+    if (copyRecoveryBtn) {
+        copyRecoveryBtn.addEventListener('click', async () => {
+            if (!recoveryWords.length) return;
+            const text = recoveryWords.join(' ');
+            try {
+                await navigator.clipboard.writeText(text);
+                copyRecoveryBtn.textContent = 'COPIED!';
+                setTimeout(() => { copyRecoveryBtn.textContent = 'COPY WORDS'; }, 1500);
+            } catch (err) {
+                showError(recoveryError, 'Could not copy to clipboard. Please copy manually.');
+            }
+        });
+    }
+
+    if (continueToLoginBtn) {
+        continueToLoginBtn.addEventListener('click', () => {
+            if (!recoverySavedCheck.checked) {
+                showError(recoveryError, 'Please confirm you have saved the recovery words.');
+                return;
+            }
+            window.location.href = 'login.html';
+        });
+    }
+
     if (signupForm) {
         signupForm.addEventListener('submit', function(e) {
             e.preventDefault();
+            showError(signupError, '');
 
-            const email = emailInput.value.trim();
             const username = usernameInput.value.trim();
             const password = passwordInput.value;
             const confirmPassword = confirmPasswordInput.value;
 
-            // Validation
-            if (!email || !username || !password || !confirmPassword) {
-                showNotification('Please fill in all fields', 'error');
-                return;
-            }
-
-            if (!validateEmail(email)) {
-                showNotification('Please enter a valid email address', 'error');
+            if (!username || !password || !confirmPassword) {
+                showError(signupError, 'Please fill in all fields.');
                 return;
             }
 
             if (username.length < 3) {
-                showNotification('Username must be at least 3 characters', 'error');
+                showError(signupError, 'Username must be at least 3 characters.');
                 return;
             }
 
-            if (password.length < 8) {
-                showNotification('Password must be at least 8 characters', 'error');
+            if (!meetsPasswordRequirements(password)) {
+                showError(signupError, 'Password must be 12+ characters with upper, lower, number, and special character.');
                 return;
             }
 
             if (password !== confirmPassword) {
-                showNotification('Passwords do not match', 'error');
+                showError(signupError, 'Passwords do not match.');
                 return;
             }
 
-            // Send signup request
-            try {
-                console.log('→ signup request', { email, username });
-                chrome.runtime.sendMessage({
-                    action: 'signup',
-                    email: email,
-                    username: username,
-                    password: password
-                }, function(response) {
-                    console.log('← signup response', response);
-                    if (response && response.success) {
-                        showNotification('Signup successful! Redirecting to login...', 'success');
-                        setTimeout(() => {
-                            window.location.href = 'login.html';
-                        }, 1200);
+            setLoading(true);
+
+            chrome.runtime.sendMessage({
+                action: 'signup',
+                username,
+                password
+            }, function(response) {
+                setLoading(false);
+
+                if (chrome.runtime.lastError) {
+                    showError(signupError, 'Extension error: ' + chrome.runtime.lastError.message);
+                    return;
+                }
+
+                if (response && response.success) {
+                    const words = response.recoveryWords || [];
+                    if (words.length === 16) {
+                        showRecoveryStep(words);
                     } else {
-                        showNotification(response?.error || 'Signup failed', 'error');
+                        showError(signupError, 'Signup succeeded but recovery words were not returned. Check the desktop app.');
                     }
-                });
-            } catch (err) {
-                console.error('signup sendMessage error', err);
-                showNotification('Extension error: ' + err.message, 'error');
-            }
+                } else {
+                    showError(signupError, response?.error || response?.message || 'Signup failed.');
+                }
+            });
         });
     }
-
-    // Auto-focus input fields on hover
-    const inputFields = document.querySelectorAll('.input-field');
-    inputFields.forEach(field => {
-        field.addEventListener('mouseenter', function() {
-            const input = this.querySelector('input');
-            if (input) {
-                input.focus();
-            }
-        });
-    });
 });
-
-function validateEmail(email) {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-}
-
-function showNotification(message, type = 'info') {
-    console.log(`[${type.toUpperCase()}] ${message}`);
-    alert(message);
-}

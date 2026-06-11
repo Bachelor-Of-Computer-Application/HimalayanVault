@@ -1,172 +1,127 @@
 // Forgot Password page functionality
 
 document.addEventListener('DOMContentLoaded', function() {
-    const emailStep = document.getElementById('emailStep');
-    const verifyStep = document.getElementById('verifyStep');
-    const resetStep = document.getElementById('resetStep');
-    
-    const sendCodeBtn = document.getElementById('sendCodeBtn');
-    const verifyCodeBtn = document.getElementById('verifyCodeBtn');
-    const resetPasswordBtn = document.getElementById('resetPasswordBtn');
-    const backToEmailBtn = document.getElementById('backToEmailBtn');
-    const backToLoginBtn = document.getElementById('backToLoginBtn');
-    
-    const emailInput = document.getElementById('email');
-    const verificationCodeInput = document.getElementById('verificationCode');
+    const step1 = document.getElementById('step1');
+    const step2 = document.getElementById('step2');
+    const step3 = document.getElementById('step3');
+
+    const step1NextBtn = document.getElementById('step1NextBtn');
+    const step2NextBtn = document.getElementById('step2NextBtn');
+    const step2BackBtn = document.getElementById('step2BackBtn');
+    const step3BackBtn = document.getElementById('step3BackBtn');
+    const completeResetBtn = document.getElementById('completeResetBtn');
+
+    const usernameInput = document.getElementById('username');
+    const recoveryWordsInput = document.getElementById('recoveryWords');
     const newPasswordInput = document.getElementById('newPassword');
     const confirmNewPasswordInput = document.getElementById('confirmNewPassword');
     const strengthIndicator = document.getElementById('strengthIndicator');
 
-    let userEmail = '';
+    let currentUsername = '';
 
-    // Step 1: Send Recovery Code
-    if (sendCodeBtn) {
-        sendCodeBtn.addEventListener('click', function() {
-            const email = emailInput.value.trim();
+    // Step 1: Verify recovery words (username + 16 words)
+    if (step1NextBtn) {
+        step1NextBtn.addEventListener('click', function() {
+            const username = usernameInput.value.trim();
+            const words = recoveryWordsInput.value.trim().toLowerCase();
 
-            if (!email || !validateEmail(email)) {
-                showNotification('Please enter a valid email address', 'error');
+            if (!username) {
+                showNotification('Please enter your username', 'error');
+                return;
+            }
+            if (!words) {
+                showNotification('Please enter your 16 recovery words', 'error');
                 return;
             }
 
-            userEmail = email;
+            const arr = words.split(/\s+/).filter(Boolean);
+            if (arr.length !== 16) {
+                showNotification('Please enter exactly 16 recovery words', 'error');
+                return;
+            }
 
             try {
-                console.log('→ sendRecoveryCode', { email });
-                chrome.runtime.sendMessage({ action: 'sendRecoveryCode', email: email }, function(response) {
-                    console.log('← sendRecoveryCode response', response);
+                console.log('→ verifyRecoveryMnemonic', { username, words: arr });
+                chrome.runtime.sendMessage({ action: 'verifyRecoveryMnemonic', username: username, words: arr }, function(response) {
+                    console.log('← verifyRecoveryMnemonic', response);
                     if (response && response.success) {
-                        showNotification('Recovery code sent to your email!', 'success');
-                        transitionToStep('verify');
+                        currentUsername = username;
+                        showNotification('Recovery words verified', 'success');
+                        transitionToStep('step2');
                     } else {
-                        showNotification(response?.error || 'Failed to send recovery code', 'error');
+                        showNotification(response?.error || 'Recovery words verification failed', 'error');
                     }
                 });
             } catch (err) {
-                console.error('sendRecoveryCode error', err);
+                console.error('verifyRecoveryMnemonic error', err);
                 showNotification('Extension error: ' + err.message, 'error');
             }
         });
     }
 
-    // Step 2: Verify Code
-    if (verifyCodeBtn) {
-        verifyCodeBtn.addEventListener('click', function() {
-            const code = verificationCodeInput.value.trim();
+    // Step 2: Set New Password
+    if (step2NextBtn) {
+        step2NextBtn.addEventListener('click', function() {
+            const pwd = newPasswordInput.value;
+            const con = confirmNewPasswordInput.value;
 
-            if (code.length !== 6 || !/^\d+$/.test(code)) {
-                showNotification('Please enter a valid 6-digit code', 'error');
-                return;
-            }
+            if (!pwd) { showNotification('Please enter a new password', 'error'); return; }
+            if (pwd.length < 12) { showNotification('Password must be at least 12 characters', 'error'); return; }
+            if (pwd !== con) { showNotification('Passwords do not match', 'error'); return; }
 
-            try {
-                console.log('→ verifyRecoveryCode', { email: userEmail, code });
-                chrome.runtime.sendMessage({ action: 'verifyRecoveryCode', email: userEmail, code: code }, function(response) {
-                    console.log('← verifyRecoveryCode response', response);
-                    if (response && response.success) {
-                        showNotification('Code verified!', 'success');
-                        transitionToStep('reset');
-                    } else {
-                        showNotification(response?.error || 'Invalid verification code', 'error');
-                    }
-                });
-            } catch (err) {
-                console.error('verifyRecoveryCode error', err);
-                showNotification('Extension error: ' + err.message, 'error');
-            }
+            // move to confirmation
+            const short = pwd.substring(0, Math.min(3, pwd.length)) + '***';
+            const msg = document.getElementById('confirmationMsg');
+            if (msg) msg.textContent = 'New password: ' + short;
+            transitionToStep('step3');
         });
     }
 
-    // Step 3: Reset Password
-    if (resetPasswordBtn) {
-        resetPasswordBtn.addEventListener('click', function() {
+    if (step2BackBtn) step2BackBtn.addEventListener('click', () => transitionToStep('step1'));
+
+    // Step 3: Complete reset by calling background handler
+    if (completeResetBtn) {
+        completeResetBtn.addEventListener('click', function() {
             const newPassword = newPasswordInput.value;
-            const confirmNewPassword = confirmNewPasswordInput.value;
-
-            if (!newPassword || !confirmNewPassword) {
-                showNotification('Please fill in all password fields', 'error');
-                return;
-            }
-
-            if (newPassword.length < 8) {
-                showNotification('Password must be at least 8 characters', 'error');
-                return;
-            }
-
-            if (newPassword !== confirmNewPassword) {
-                showNotification('Passwords do not match', 'error');
-                return;
-            }
-
             try {
-                console.log('→ resetPassword', { email: userEmail });
-                chrome.runtime.sendMessage({ action: 'resetPassword', email: userEmail, newPassword: newPassword }, function(response) {
-                    console.log('← resetPassword response', response);
+                console.log('→ resetPasswordWithRecovery', { username: currentUsername });
+                chrome.runtime.sendMessage({ action: 'resetPasswordWithRecovery', username: currentUsername, newPassword }, function(response) {
+                    console.log('← resetPasswordWithRecovery', response);
                     if (response && response.success) {
                         showNotification('Password reset successful! Redirecting to login...', 'success');
-                        setTimeout(() => {
-                            window.location.href = 'login.html';
-                        }, 1200);
+                        setTimeout(() => { window.location.href = 'login.html'; }, 1200);
                     } else {
                         showNotification(response?.error || 'Password reset failed', 'error');
                     }
                 });
             } catch (err) {
-                console.error('resetPassword error', err);
+                console.error('resetPasswordWithRecovery error', err);
                 showNotification('Extension error: ' + err.message, 'error');
             }
         });
     }
 
-    // Back buttons
-    if (backToEmailBtn) {
-        backToEmailBtn.addEventListener('click', function() {
-            transitionToStep('email');
-        });
-    }
-
-    if (backToLoginBtn) {
-        backToLoginBtn.addEventListener('click', function() {
-            window.location.href = 'login.html';
-        });
-    }
+    if (step3BackBtn) step3BackBtn.addEventListener('click', () => transitionToStep('step2'));
 
     // Password strength checker
     function checkPasswordStrength(password) {
-        let strength = 0;
-        
-        if (password.length >= 8) strength++;
-        if (password.length >= 12) strength++;
-        if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
-        if (/[0-9]/.test(password)) strength++;
-        if (/[^a-zA-Z0-9]/.test(password)) strength++;
-
-        return Math.min(strength, 3);
+        let sc = 0;
+        if (password.length >= 8) sc++;
+        if (password.length >= 12) sc++;
+        if (/[A-Z]/.test(password) && /[a-z]/.test(password) && /[0-9]/.test(password)) sc++;
+        if (/[^A-Za-z0-9]/.test(password)) sc++;
+        return Math.min(sc, 3);
     }
 
     function updatePasswordStrength() {
         const password = newPasswordInput.value;
         const strength = checkPasswordStrength(password);
-        const strengthBar = strengthIndicator.querySelector('.strength-bar');
-        const strengthText = strengthIndicator.querySelector('.strength-text');
-
-        strengthBar.classList.remove('weak', 'medium', 'strong');
-        
-        switch(strength) {
-            case 0:
-                strengthBar.classList.add('weak');
-                strengthText.textContent = 'Password strength: weak';
-                break;
-            case 1:
-                strengthBar.classList.add('medium');
-                strengthText.textContent = 'Password strength: medium';
-                break;
-            case 2:
-            case 3:
-                strengthBar.classList.add('strong');
-                strengthText.textContent = 'Password strength: strong';
-                break;
-        }
+        const bar = strengthIndicator.querySelector('.strength-bar');
+        const text = strengthIndicator.querySelector('.strength-text');
+        bar.classList.remove('weak','medium','strong');
+        if (strength === 0) { bar.classList.add('weak'); text.textContent = 'Password strength: weak'; }
+        else if (strength === 1) { bar.classList.add('medium'); text.textContent = 'Password strength: medium'; }
+        else { bar.classList.add('strong'); text.textContent = 'Password strength: strong'; }
     }
 
     // Real-time password strength update
@@ -174,20 +129,19 @@ document.addEventListener('DOMContentLoaded', function() {
         newPasswordInput.addEventListener('input', updatePasswordStrength);
     }
 
-    // Transition between steps
+    // Transition between steps (step1, step2, step3)
     function transitionToStep(step) {
-        emailStep.style.display = step === 'email' ? 'block' : 'none';
-        verifyStep.style.display = step === 'verify' ? 'block' : 'none';
-        resetStep.style.display = step === 'reset' ? 'block' : 'none';
+        step1.style.display = step === 'step1' ? 'block' : 'none';
+        step2.style.display = step === 'step2' ? 'block' : 'none';
+        step3.style.display = step === 'step3' ? 'block' : 'none';
 
-        // Clear inputs when transitioning
-        if (step === 'verify') {
-            verificationCodeInput.value = '';
-            verificationCodeInput.focus();
-        } else if (step === 'reset') {
+        if (step === 'step2') {
             newPasswordInput.value = '';
             confirmNewPasswordInput.value = '';
             newPasswordInput.focus();
+        }
+        if (step === 'step3') {
+            // nothing
         }
     }
 
@@ -202,12 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Allow numeric input only for verification code
-    if (verificationCodeInput) {
-        verificationCodeInput.addEventListener('input', function(e) {
-            this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
-        });
-    }
+    transitionToStep('step1');
 });
 
 function validateEmail(email) {

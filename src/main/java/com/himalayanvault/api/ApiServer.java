@@ -9,6 +9,8 @@ import com.himalayanvault.api.handlers.AuthHandler;
 import com.himalayanvault.api.handlers.CredentialHandler;
 import com.himalayanvault.api.handlers.HealthHandler;
 import com.himalayanvault.api.handlers.PasswordHandler;
+import com.himalayanvault.api.handlers.RecoveryHandler;
+import com.himalayanvault.api.handlers.SignupHandler;
 import com.sun.net.httpserver.HttpServer;
 
 /**
@@ -18,6 +20,7 @@ import com.sun.net.httpserver.HttpServer;
  * Provides REST API endpoints for Chrome extension communication.
  * 
  * Endpoints:
+ * - POST /signup     - Create a new vault account
  * - POST /login      - Authenticate and get session token
  * - POST /lock       - Logout/invalidate session
  * - GET /health      - Health check
@@ -31,7 +34,6 @@ import com.sun.net.httpserver.HttpServer;
 public class ApiServer {
 
     private static final String LOCALHOST = "127.0.0.1";
-    // default desired port; will fall back to an ephemeral port if already in use
     private int port = 8443;
     private static final int THREAD_POOL_SIZE = 10;
 
@@ -43,17 +45,8 @@ public class ApiServer {
      * Create and configure the API server.
      */
     public ApiServer() throws Exception {
-        // Try to bind to the configured port; if it's in use, fall back to an ephemeral port
-        try {
-            InetSocketAddress address = new InetSocketAddress(LOCALHOST, port);
-            this.server = HttpServer.create(address, 50);  // Backlog of 50
-        } catch (java.net.BindException be) {
-            System.err.println("[ApiServer] Port " + port + " in use — falling back to an ephemeral port");
-            InetSocketAddress address = new InetSocketAddress(LOCALHOST, 0);
-            this.server = HttpServer.create(address, 50);
-            // update port to reflect the actual bound port
-            this.port = this.server.getAddress().getPort();
-        }
+        InetSocketAddress address = new InetSocketAddress(LOCALHOST, port);
+        this.server = HttpServer.create(address, 50);  // Backlog of 50
 
         // Set up thread pool for handling requests
         this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(THREAD_POOL_SIZE);
@@ -74,9 +67,10 @@ public class ApiServer {
         System.out.println("[ApiServer] Registered GET /health");
 
         // Authentication endpoints
+        server.createContext("/signup", new SignupHandler());
         server.createContext("/login", new AuthHandler());
         server.createContext("/lock", new AuthHandler());
-        System.out.println("[ApiServer] Registered POST /login, POST /lock");
+        System.out.println("[ApiServer] Registered POST /signup, POST /login, POST /lock");
 
         // Credential endpoints
         server.createContext("/credentials", new CredentialHandler());
@@ -89,6 +83,11 @@ public class ApiServer {
         // Password generation endpoint
         server.createContext("/generate-password", new PasswordHandler());
         System.out.println("[ApiServer] Registered POST /generate-password");
+
+        // Recovery endpoints
+        server.createContext("/recovery/verify", new RecoveryHandler());
+        server.createContext("/recovery/reset", new RecoveryHandler());
+        System.out.println("[ApiServer] Registered POST /recovery/verify, POST /recovery/reset");
     }
 
     /**

@@ -3,6 +3,7 @@ package com.himalayanvault.api.handlers;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,6 +16,7 @@ import com.himalayanvault.api.dto.CredentialUpdateRequest;
 import com.himalayanvault.api.util.JsonUtil;
 import com.himalayanvault.db.DatabaseManager;
 import com.himalayanvault.models.Credential;
+import com.himalayanvault.security.EncryptionUtil;
 import com.himalayanvault.security.SessionManager;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -105,8 +107,11 @@ public class CredentialHandler implements HttpHandler {
                 rs = db.loadCredentialsBySite(username, siteUrl);
             }
 
+            SecretKey encryptionKey = sessionManager.getEncryptionKey(token);
+
             while (rs != null && rs.next()) {
                 Credential cred = resultSetToCredential(rs);
+                cred.encryptedPassword = decryptForClient(cred.encryptedPassword, encryptionKey);
                 credentials.add(cred);
             }
             if (rs != null) rs.close();
@@ -156,15 +161,45 @@ public class CredentialHandler implements HttpHandler {
                 return;
             }
 
+            String storedPassword = encryptForStorage(request.encryptedPassword, encryptionKey);
             DatabaseManager db = DatabaseManager.getInstance();
+            String siteName = request.siteName != null ? request.siteName : request.siteUrl;
+            String notes = request.notes != null ? request.notes : "";
+
+            if (db.credentialExists(username, request.siteUrl, request.siteUsername)) {
+                Long existingId = db.findCredentialId(username, request.siteUrl, request.siteUsername);
+                if (existingId == null) {
+                    JsonUtil.sendInternalError(exchange, "Failed to locate existing credential");
+                    return;
+                }
+
+                boolean updated = db.updateCredential(
+                    existingId,
+                    username,
+                    request.siteUrl,
+                    siteName,
+                    request.siteUsername,
+                    storedPassword,
+                    notes);
+
+                if (updated) {
+                    CredentialResponse response = new CredentialResponse(true, "Credential updated with ID: " + existingId);
+                    JsonUtil.sendResponse(exchange, 200, response);
+                    System.out.println("[CredentialHandler] Credential updated for user: " + username);
+                } else {
+                    JsonUtil.sendInternalError(exchange, "Failed to update credential");
+                }
+                return;
+            }
+
             long credId = db.saveCredential(
                 username,
                 request.siteUrl,
-                request.siteName != null ? request.siteName : request.siteUrl,
+                siteName,
                 request.siteUsername,
-                request.encryptedPassword,
-                request.notes != null ? request.notes : ""
-            );
+                1,
+                storedPassword,
+                notes);
 
             if (credId > 0) {
                 CredentialResponse response = new CredentialResponse(true, "Credential saved with ID: " + credId);
@@ -176,6 +211,10 @@ public class CredentialHandler implements HttpHandler {
 
         } catch (IllegalArgumentException e) {
             JsonUtil.sendBadRequest(exchange, e.getMessage());
+        } catch (Exception e) {
+            System.err.println("[CredentialHandler] Save failed: " + e.getMessage());
+            e.printStackTrace();
+            JsonUtil.sendInternalError(exchange, e.getMessage());
         }
     }
 
@@ -191,8 +230,9 @@ public class CredentialHandler implements HttpHandler {
 
         SessionManager sessionManager = SessionManager.getInstance();
         String username = sessionManager.getUsernameFromToken(token);
-        
-        if (username == null) {
+        SecretKey encryptionKey = sessionManager.getEncryptionKey(token);
+
+        if (username == null || encryptionKey == null) {
             JsonUtil.sendUnauthorized(exchange);
             return;
         }
@@ -217,7 +257,7 @@ public class CredentialHandler implements HttpHandler {
                 request.siteUrl,
                 request.siteName != null ? request.siteName : request.siteUrl,
                 request.siteUsername,
-                request.encryptedPassword,
+                encryptForStorage(request.encryptedPassword, encryptionKey),
                 request.notes != null ? request.notes : ""
             );
 
@@ -297,8 +337,11 @@ public class CredentialHandler implements HttpHandler {
             DatabaseManager db = DatabaseManager.getInstance();
             ResultSet rs = db.loadCredentialById(credId, username);
 
+            SecretKey encryptionKey = sessionManager.getEncryptionKey(token);
+
             if (rs != null && rs.next()) {
                 Credential cred = resultSetToCredential(rs);
+                cred.encryptedPassword = decryptForClient(cred.encryptedPassword, encryptionKey);
                 CredentialResponse response = new CredentialResponse(true, "Credential retrieved", cred);
                 JsonUtil.sendResponse(exchange, 200, response);
                 rs.close();
@@ -351,16 +394,74 @@ public class CredentialHandler implements HttpHandler {
     }
 
     private Credential resultSetToCredential(ResultSet rs) throws Exception {
+        // Convert timestamps - handle both long (milliseconds) and String formats
+        long createdAtMs;
+        long updatedAtMs;
+        
+        try {
+            // Try reading as long (milliseconds)
+            createdAtMs = rs.getLong("created_at");
+            updatedAtMs = rs.getLong("updated_at");
+        } catch (SQLException e) {
+            // Fallback: parse as String timestamp
+            createdAtMs = System.currentTimeMillis();
+            updatedAtMs = System.currentTimeMillis();
+        }
+        
+        int accountNumber = 1;
+        try {
+            accountNumber = rs.getInt("account_number");
+            if (rs.wasNull()) {
+                accountNumber = 1;
+            }
+        } catch (SQLException ignored) {
+            accountNumber = 1;
+        }
+
         return new Credential(
             rs.getLong("id"),
             rs.getString("owner_username"),
             rs.getString("site_url"),
             rs.getString("site_name"),
             rs.getString("site_username"),
+            accountNumber,
             rs.getString("encrypted_password"),
             rs.getString("notes"),
-            rs.getString("created_at"),
-            rs.getString("updated_at")
+            createdAtMs,
+            updatedAtMs
         );
+    }
+
+    private String encryptForStorage(String passwordValue, SecretKey encryptionKey) {
+        if (passwordValue == null || passwordValue.isBlank()) {
+            return passwordValue;
+        }
+        if (looksEncrypted(passwordValue)) {
+            return passwordValue;
+        }
+        return EncryptionUtil.encrypt(passwordValue, encryptionKey);
+    }
+
+    private String decryptForClient(String storedPassword, SecretKey encryptionKey) {
+        if (storedPassword == null || storedPassword.isBlank() || encryptionKey == null) {
+            return storedPassword;
+        }
+        if (!looksEncrypted(storedPassword)) {
+            return storedPassword;
+        }
+        try {
+            return EncryptionUtil.decrypt(storedPassword, encryptionKey);
+        } catch (RuntimeException e) {
+            return storedPassword;
+        }
+    }
+
+    private boolean looksEncrypted(String value) {
+        try {
+            byte[] decoded = java.util.Base64.getDecoder().decode(value);
+            return decoded.length > (96 / 8);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }

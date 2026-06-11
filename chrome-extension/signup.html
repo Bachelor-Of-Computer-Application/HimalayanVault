@@ -25,41 +25,64 @@
 
     <div class="login-wrapper">
         <form id="signupForm" class="login-form">
-            <h2 class="form-title">✍️ Sign Up</h2>
-            
-            <div class="form-group input-field">
-                <input type="email" id="email" name="email" required placeholder="Email">
-                <label for="email">Email</label>
-            </div>
+            <h2 class="form-title">Sign Up</h2>
 
             <div class="form-group input-field">
-                <input type="text" id="username" name="username" required placeholder="Username">
+                <input type="text" id="username" name="username" required>
                 <label for="username">Username</label>
             </div>
 
             <div class="form-group input-field">
-                <input type="password" id="password" name="password" required placeholder="Password">
+                <input type="password" id="password" name="password" required>
                 <label for="password">Password</label>
             </div>
 
             <div class="form-group input-field">
-                <input type="password" id="confirmPassword" name="confirmPassword" required placeholder="Confirm Password">
+                <input type="password" id="confirmPassword" name="confirmPassword" required>
                 <label for="confirmPassword">Confirm Password</label>
             </div>
+
+            <ul class="password-rules" id="passwordRules">
+                <li id="ruleLength">12+ characters</li>
+                <li id="ruleCase">Upper and lower case</li>
+                <li id="ruleNumber">Contains a number</li>
+                <li id="ruleSpecial">Contains a special character</li>
+            </ul>
 
             <div class="password-strength" id="strengthIndicator">
                 <div class="strength-bar"></div>
                 <span class="strength-text">Password strength: weak</span>
             </div>
-            
+
+            <p id="signupError" class="form-error" hidden></p>
+
             <div class="button-group">
-                <button type="submit" class="login-btn">SIGN UP</button>
+                <button type="submit" class="login-btn" id="signupBtn">SIGN UP</button>
             </div>
-            
+
             <div class="form-links">
                 <a href="login.html" class="link">Already have an account? Sign In</a>
             </div>
         </form>
+
+        <div id="recoveryStep" class="login-form recovery-step" hidden>
+            <h2 class="form-title">Save Recovery Words</h2>
+            <p class="recovery-intro">
+                Your vault was created. Write down these 16 words in order — you need them to recover your account.
+            </p>
+            <div id="recoveryWordsGrid" class="recovery-words-grid"></div>
+            <div class="button-group recovery-actions">
+                <button type="button" class="login-btn secondary-btn" id="copyRecoveryBtn">COPY WORDS</button>
+            </div>
+            <label class="recovery-check">
+                <input type="checkbox" id="recoverySavedCheck">
+                I have saved these words securely
+            </label>
+            <p id="recoveryError" class="form-error" hidden></p>
+            <div class="button-group">
+                <button type="button" class="login-btn" id="continueToLoginBtn" disabled>CONTINUE TO LOGIN</button>
+            </div>
+        </div>
     </div>
 
     <script src="signup.js"></script>

@@ -8,7 +8,12 @@ import java.util.ResourceBundle;
 
 import com.himalayanvault.auth.AuthManager;
 import com.himalayanvault.auth.RecoveryCodeManager;
+import com.himalayanvault.export.VaultExporter;
+import com.himalayanvault.security.ClipboardProtector;
 
+import javafx.animation.FadeTransition;
+import javafx.animation.ParallelTransition;
+import javafx.animation.TranslateTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -16,6 +21,7 @@ import javafx.fxml.Initializable;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextArea;
@@ -24,6 +30,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 /**
  * RecoveryController — handles password recovery using recovery codes (mnemonics).
@@ -31,8 +38,12 @@ import javafx.stage.Stage;
  */
 public class RecoveryController implements Initializable {
 
+    private static final double AUTH_WIDTH = 1024;
+    private static final double AUTH_HEIGHT = 640;
+
     /* ── Step panes ───────────────────────────────────────────────── */
-    @FXML private VBox step1, step2, step3;
+    @FXML private VBox formWrapper;
+    @FXML private VBox step1, step2, step2b, step3;  // step2b is export key mnemonic
     @FXML private Label stepLbl;
 
     /* ── Step 1: Enter Recovery Words ──────────────────────────────── */
@@ -50,6 +61,13 @@ public class RecoveryController implements Initializable {
     @FXML private Label r1, r2, r3, r4;
     @FXML private Button nextBtn2, backBtn2;
 
+    /* ── Step 2b: Export Key Mnemonic ──────────────────────────── */
+    @FXML private Label     exportKeyMnemonic;  // Display 12-word BIP39
+    @FXML private Label     exportKeyWarning;
+    @FXML private CheckBox  exportKeyWrittenCheck;  // Acknowledge written down
+    @FXML private Label     err2b;
+    @FXML private Button    nextBtn2b, backBtn2b;
+
     /* ── Step 3: Confirm Password Reset ──────────────────────────── */
     @FXML private Label confirmationMsg, err3;
     @FXML private Button completeBtn, backBtn3;
@@ -57,7 +75,8 @@ public class RecoveryController implements Initializable {
     /* ── State ───────────────────────────────────────────────────── */
     private boolean e1Open = false, e2Open = false;
     private String currentUsername; // Store username for use in step 3
-
+    private String exportKeyMnemonicPhrase;  // Store for display
+    private boolean onExportKeyStep = false;
     /* ── Colours ─────────────────────────────────────────────────── */
     private static final Color C_WEAK   = Color.web("#E24B4A");
     private static final Color C_FAIR   = Color.web("#EF9F27");
@@ -71,6 +90,7 @@ public class RecoveryController implements Initializable {
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
+        Platform.runLater(this::playEntranceAnimation);
         // Password visibility toggle
         newPwdField.textProperty().addListener((o, old, v) -> {
             if (!e1Open) {
@@ -102,6 +122,11 @@ public class RecoveryController implements Initializable {
         });
 
         Platform.runLater(() -> recoveryWordsArea.requestFocus());
+    }
+
+    private void playEntranceAnimation() {
+        animateNode(formWrapper, 0, 18);
+        animateNode(step1, 60, 24);
     }
 
     /* ════════════════ STEP 1: Verify Recovery Words ════════════════ */
@@ -142,7 +167,7 @@ public class RecoveryController implements Initializable {
 
     @FXML
     private void backBtn1() {
-        loadScene("/fxml/login.fxml", 420, 540);
+        loadAuthScene("/fxml/login.fxml");
     }
 
     /* ════════════════ STEP 2: Set New Password ════════════════ */
@@ -166,8 +191,46 @@ public class RecoveryController implements Initializable {
         }
 
         err2.setText("");
+        // Generate export key mnemonic
+        exportKeyMnemonicPhrase = generateExportKeyMnemonic();
+        exportKeyWrittenCheck.setSelected(false);
+        err2b.setText("");
+        if (exportKeyMnemonic != null) {
+            exportKeyMnemonic.setText(exportKeyMnemonicPhrase);
+        }
+        onExportKeyStep = true;
+        goStep(2);
+    }
+
+    @FXML
+    private void step2bNext() {
+        if (!exportKeyWrittenCheck.isSelected()) {
+            err2b.setText("Please confirm you have written down the export key.");
+            return;
+        }
+        err2b.setText("");
+        onExportKeyStep = false;
+        String pwd = newPwdField.getText();
         confirmationMsg.setText("New password: " + pwd.substring(0, Math.min(3, pwd.length())) + "***");
         goStep(3);
+    }
+
+    @FXML
+    private void copyExportKey() {
+        ClipboardProtector.copySensitiveText(exportKeyMnemonicPhrase);
+    }
+
+    private String generateExportKeyMnemonic() {
+        try {
+            VaultExporter exporter = new VaultExporter();
+            // Generate a temporary empty credential list just to get the mnemonic
+            com.himalayanvault.export.VaultExporter.ExportResult result = 
+                exporter.exportWithBIP39Mnemonic(new java.util.ArrayList<>(), "recovery-export-key");
+            return result.bip39Mnemonic;
+        } catch (Exception e) {
+            System.err.println("Failed to generate export key mnemonic: " + e.getMessage());
+            return "error-generating-mnemonic";
+        }
     }
 
     @FXML
@@ -185,6 +248,13 @@ public class RecoveryController implements Initializable {
         goStep(1);
     }
 
+    @FXML
+    private void backBtn2b() {
+        onExportKeyStep = false;
+        exportKeyMnemonicPhrase = null;
+        goStep(2);
+    }
+
     /* ════════════════ STEP 3: Confirm Reset ════════════════ */
     @FXML
     private void completeRecovery() {
@@ -199,7 +269,7 @@ public class RecoveryController implements Initializable {
             new Thread(() -> {
                 try {
                     Thread.sleep(2000);
-                    Platform.runLater(() -> loadScene("/fxml/login.fxml", 420, 540));
+                    Platform.runLater(() -> loadAuthScene("/fxml/login.fxml"));
                 } catch (InterruptedException ignored) {}
             }, "recovery-complete").start();
         } else {
@@ -209,6 +279,7 @@ public class RecoveryController implements Initializable {
 
     @FXML
     private void backBtn3() {
+        onExportKeyStep = true;
         goStep(2);
     }
 
@@ -216,17 +287,25 @@ public class RecoveryController implements Initializable {
     private void goStep(int s) {
         step1.setVisible(s == 1);
         step1.setManaged(s == 1);
-        step2.setVisible(s == 2);
-        step2.setManaged(s == 2);
+        step2.setVisible(s == 2 && !onExportKeyStep);
+        step2.setManaged(s == 2 && !onExportKeyStep);
+        step2b.setVisible(s == 2 && onExportKeyStep);
+        step2b.setManaged(s == 2 && onExportKeyStep);
         step3.setVisible(s == 3);
         step3.setManaged(s == 3);
 
-        stepLbl.setText("Step " + s + " of 3 — " + switch (s) {
-            case 1 -> "Enter recovery code";
-            case 2 -> "Set new password";
-            case 3 -> "Confirm password reset";
-            default -> "";
-        });
+        VBox activeStep = s == 1 ? step1 : s == 2 ? (onExportKeyStep ? step2b : step2) : step3;
+        animateNode(activeStep, 0, 18);
+
+        if (stepLbl != null) {
+            String stepText = switch (s) {
+                case 1 -> "Enter recovery code";
+                case 2 -> onExportKeyStep ? "Save export key" : "Set new password";
+                case 3 -> "Confirm password reset";
+                default -> "";
+            };
+            stepLbl.setText("Step " + s + " of 3 — " + stepText);
+        }
     }
 
     private void loadScene(String fxml, double w, double h) {
@@ -245,16 +324,73 @@ public class RecoveryController implements Initializable {
         }
     }
 
+    private void loadAuthScene(String fxml) {
+        try {
+            Parent root = FXMLLoader.load(getClass().getResource(fxml));
+            Stage stage = (Stage) step1.getScene().getWindow();
+            Scene scene = new Scene(root, AUTH_WIDTH, AUTH_HEIGHT);
+            scene.getStylesheets().add(getClass().getResource("/css/login.css").toExternalForm());
+            stage.setScene(scene);
+            stage.setResizable(false);
+            stage.setMinWidth(AUTH_WIDTH);
+            stage.setMinHeight(AUTH_HEIGHT);
+            stage.setMaxWidth(AUTH_WIDTH);
+            stage.setMaxHeight(AUTH_HEIGHT);
+            stage.centerOnScreen();
+        } catch (IOException e) {
+            err1.setText("Navigation error: " + e.getMessage());
+            System.err.println("[RecoveryController] Scene load error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void animateNode(VBox node, long delayMs, double offsetY) {
+        if (node == null) {
+            return;
+        }
+
+        node.setOpacity(0);
+        node.setTranslateY(offsetY);
+
+        FadeTransition fade = new FadeTransition(Duration.millis(420), node);
+        fade.setFromValue(0);
+        fade.setToValue(1);
+
+        TranslateTransition slide = new TranslateTransition(Duration.millis(420), node);
+        slide.setFromY(offsetY);
+        slide.setToY(0);
+
+        ParallelTransition animation = new ParallelTransition(fade, slide);
+        animation.setDelay(Duration.millis(delayMs));
+        animation.play();
+    }
+
     private boolean swap(PasswordField pwd, TextField vis, boolean isOpen, Button eye) {
-        if (!isOpen) {
+        isOpen = !isOpen;
+        if (isOpen) {
             vis.setText(pwd.getText());
-            vis.toFront();
-            return true;
+            vis.setVisible(true);
+            vis.setManaged(true);
+            pwd.setVisible(false);
+            pwd.setManaged(false);
+            eye.setText("HIDE");
+            Platform.runLater(() -> {
+                vis.requestFocus();
+                vis.positionCaret(vis.getText().length());
+            });
         } else {
             pwd.setText(vis.getText());
-            pwd.toFront();
-            return false;
+            pwd.setVisible(true);
+            pwd.setManaged(true);
+            vis.setVisible(false);
+            vis.setManaged(false);
+            eye.setText("SHOW");
+            Platform.runLater(() -> {
+                pwd.requestFocus();
+                pwd.positionCaret(pwd.getText().length());
+            });
         }
+        return isOpen;
     }
 
     private boolean meetsReqs(String p) {
@@ -299,6 +435,7 @@ public class RecoveryController implements Initializable {
 
     private void updateRules(String p) {
         if (p == null) p = "";
+        if (r1 == null) return;
         applyRule(r1, p.length() >= 12);
         applyRule(r2, p.matches(".*[A-Z].*") && p.matches(".*[a-z].*"));
         applyRule(r3, p.matches(".*[0-9].*"));
@@ -306,12 +443,14 @@ public class RecoveryController implements Initializable {
     }
 
     private void applyRule(Label lbl, boolean met) {
+        if (lbl == null) return;
+        String rule = lbl.getText().replaceAll("^[✓○]\\s+", "");
         if (met) {
             lbl.setStyle("-fx-text-fill:#2E6B0A;");
-            lbl.setText("✓ " + lbl.getText().replaceAll("✓\\s+", ""));
+            lbl.setText("✓ " + rule);
         } else {
             lbl.setStyle("-fx-text-fill:#7A8A9B;");
-            lbl.setText(lbl.getText().replaceAll("✓\\s+", ""));
+            lbl.setText("○ " + rule);
         }
     }
 

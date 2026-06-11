@@ -4,69 +4,73 @@
 <?import javafx.scene.control.*?>
 <?import javafx.geometry.*?>
 
-<BorderPane xmlns="http://javafx.com/javafx"
+<BorderPane fx:id="root"
+            xmlns="http://javafx.com/javafx"
             xmlns:fx="http://javafx.com/fxml"
             fx:controller="com.himalayanvault.ui.VaultController"
             styleClass="root-pane"
             stylesheets="@../css/vault.css">
 
-    <!-- ── Top Bar ── -->
     <top>
-        <HBox styleClass="top-bar" alignment="CENTER_LEFT" spacing="15">
-            <VBox.margin><Insets/></VBox.margin>
+        <HBox styleClass="top-bar" alignment="CENTER_LEFT" spacing="12">
             <Label styleClass="app-title" text="Himalayan Vault"/>
             <Separator orientation="VERTICAL"/>
-            <Label styleClass="vault-status" text="✓ Vault Unlocked"/>
+            <Label fx:id="vaultStatus" styleClass="vault-status" text="Vault Locked"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Button styleClass="btn-secondary" text="Lock" onAction="#handleLock"/>
-            <Button styleClass="btn-danger" text="⋯" onAction="#handleMenu"/>
+            <MenuButton fx:id="menuButton" styleClass="btn-secondary" text="Menu">
+                <items>
+                    <MenuItem text="Refresh" onAction="#handleRefresh"/>
+                    <SeparatorMenuItem/>
+                    <MenuItem text="Export Vault…" onAction="#handleExport"/>
+                    <MenuItem text="Import Vault…" onAction="#handleImport"/>
+                </items>
+            </MenuButton>
         </HBox>
     </top>
 
-    <!-- ── Main Content ── -->
     <center>
-        <VBox alignment="TOP_CENTER" spacing="20">
-            <VBox.margin><Insets top="30" left="20" right="20" bottom="20"/></VBox.margin>
+        <VBox spacing="14" styleClass="vault-content">
+            <padding><Insets top="18" right="24" bottom="18" left="24"/></padding>
 
-            <!-- Welcome message -->
-            <VBox alignment="CENTER" spacing="10">
-                <Label styleClass="welcome-title" text="Welcome to Your Vault"/>
-                <Label styleClass="welcome-subtitle" text="Your passwords are encrypted and safely stored"/>
+            <VBox spacing="4">
+                <Label styleClass="welcome-title" text="Your Vault"/>
+                <Label fx:id="credentialCountLabel" styleClass="welcome-subtitle" text="0 stored credential(s)"/>
             </VBox>
 
-            <!-- Feature cards -->
-            <HBox spacing="15" alignment="CENTER">
-                <VBox styleClass="feature-card" alignment="CENTER" spacing="10">
-                    <Label text="Secure" styleClass="feature-icon"/>
-                    <Label text="Encrypted Storage" styleClass="feature-name"/>
-                    <Label text="Military-grade encryption" styleClass="feature-desc" wrapText="true"/>
-                </VBox>
-                <VBox styleClass="feature-card" alignment="CENTER" spacing="10">
-                    <Label text="Master" styleClass="feature-icon"/>
-                    <Label text="Master Password" styleClass="feature-name"/>
-                    <Label text="Single password unlocks all" styleClass="feature-desc" wrapText="true"/>
-                </VBox>
-                <VBox styleClass="feature-card" alignment="CENTER" spacing="10">
-                    <Label text="Local" styleClass="feature-icon"/>
-                    <Label text="Local Storage" styleClass="feature-name"/>
-                    <Label text="Everything stays on your device" styleClass="feature-desc" wrapText="true"/>
-                </VBox>
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <TextField fx:id="searchField" promptText="Search site, username, or URL…"
+                           styleClass="search-field" prefWidth="320" HBox.hgrow="ALWAYS"/>
+                <Button text="Add" onAction="#handleAdd" styleClass="btn-primary"/>
+                <Button text="Refresh" onAction="#handleRefresh" styleClass="btn-secondary"/>
             </HBox>
 
-            <!-- Quick actions -->
-            <VBox alignment="CENTER" spacing="12" style="-fx-padding: 30;">
-                <Label styleClass="section-title" text="Quick Actions"/>
-                <Button styleClass="btn-primary" text="Add New Password" maxWidth="200"/>
-                <Button styleClass="btn-secondary" text="View All Passwords" maxWidth="200"/>
-                <Button styleClass="btn-secondary" text="Settings" maxWidth="200"/>
-            </VBox>
+            <StackPane VBox.vgrow="ALWAYS">
+                <TableView fx:id="credentialTable" styleClass="credential-table" prefHeight="340">
+                    <columns>
+                        <TableColumn fx:id="siteColumn" text="Site" prefWidth="150"/>
+                        <TableColumn fx:id="usernameColumn" text="Username" prefWidth="170"/>
+                        <TableColumn fx:id="urlColumn" text="URL" prefWidth="200"/>
+                        <TableColumn fx:id="notesColumn" text="Notes" prefWidth="120"/>
+                        <TableColumn fx:id="updatedColumn" text="Updated" prefWidth="110"/>
+                    </columns>
+                    <placeholder>
+                        <Label text="No credentials saved yet. Add one or save from the browser extension." wrapText="true" styleClass="table-placeholder"/>
+                    </placeholder>
+                </TableView>
+            </StackPane>
 
-            <!-- Info box -->
-            <VBox styleClass="info-box" spacing="8" alignment="TOP_LEFT">
-                <Label text="Tip:" styleClass="info-title"/>
-                <Label text="Your vault data is stored locally in SQLite and encrypted with AES-256-GCM. Your master password is never stored." 
-                       wrapText="true" styleClass="info-text"/>
-            </VBox>
+            <Label fx:id="detailLabel" styleClass="detail-label" text="Select a credential to view details." wrapText="true"/>
+
+            <HBox spacing="10" alignment="CENTER_LEFT" styleClass="action-row">
+                <Button fx:id="editButton" text="Edit" onAction="#handleEdit" styleClass="btn-secondary" disable="true"/>
+                <Button fx:id="deleteButton" text="Delete" onAction="#handleDelete" styleClass="btn-danger-soft" disable="true"/>
+                <Button fx:id="copyUserButton" text="Copy Username" onAction="#handleCopyUsername" styleClass="btn-secondary" disable="true"/>
+                <Button fx:id="copyPassButton" text="Copy Password" onAction="#handleCopyPassword" styleClass="btn-secondary" disable="true"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button text="Export" onAction="#handleExport" styleClass="btn-primary"/>
+                <Button text="Import" onAction="#handleImport" styleClass="btn-secondary"/>
+            </HBox>
         </VBox>
     </center>
 

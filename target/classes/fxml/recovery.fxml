@@ -39,74 +39,93 @@
             </VBox>
         </HBox>
 
-        <VBox alignment="BOTTOM_CENTER"
-              spacing="10"
+        <VBox fx:id="formWrapper"
+              alignment="CENTER"
+              spacing="16"
               styleClass="form-wrapper"
-              VBox.vgrow="ALWAYS"
-              style="-fx-padding: 8 0 12 0; -fx-max-width: 440;">
+              VBox.vgrow="ALWAYS">
 
             <Label text="Password Recovery" styleClass="form-title"/>
+            <Label text="Restore access with your username and recovery words." styleClass="form-subtitle" wrapText="true"/>
+            <Label fx:id="stepLbl" text="Step 1 of 3 — Enter recovery code" styleClass="helper-text"/>
 
             <!-- STEP 1 -->
-            <VBox fx:id="step1" spacing="8">
-                <Label text="Username"/>
-                <HBox styleClass="floating-field">
-                    <TextField fx:id="usernameField" promptText="Enter your username" styleClass="form-input-field" HBox.hgrow="ALWAYS"/>
-                    <Label text="Username" styleClass="floating-label"/>
-                </HBox>
+            <VBox fx:id="step1" spacing="10" styleClass="step-card">
+                <TextField fx:id="usernameField" promptText="Enter your username" styleClass="form-input-field"/>
 
-                <Label text="Enter your 16-word recovery code (space-separated)"/>
-                <VBox>
-                    <TextArea fx:id="recoveryWordsArea" prefRowCount="4" prefColumnCount="30" styleClass="form-input-field"/>
-                    <Label text="Recovery words (space separated)" styleClass="floating-label"/>
-                </VBox>
+                <Label text="Enter your 16-word recovery code" styleClass="step-title"/>
+                <TextArea fx:id="recoveryWordsArea" prefRowCount="4" prefColumnCount="30" styleClass="form-input-field recovery-area"/>
 
-                <Label fx:id="err1" style="-fx-text-fill:#E24B4A;"/>
-                <HBox spacing="8">
-                    <Button fx:id="nextBtn1" text="Verify" onAction="#step1Next"/>
-                    <Button fx:id="backBtn1" text="Back" onAction="#backBtn1"/>
+                <Label fx:id="err1" styleClass="warn-label"/>
+                <HBox spacing="10" alignment="CENTER">
+                    <Button fx:id="nextBtn1" text="Verify" onAction="#step1Next" styleClass="primary-button"/>
+                    <Button fx:id="backBtn1" text="Back" onAction="#backBtn1" styleClass="ghost-button"/>
                 </HBox>
             </VBox>
 
             <!-- STEP 2 -->
-            <VBox fx:id="step2" spacing="8" visible="false" managed="false">
-                <Label text="Set New Password"/>
-                <HBox spacing="6">
-                    <PasswordField fx:id="newPwdField" promptText="New password" HBox.hgrow="ALWAYS"/>
-                    <TextField fx:id="newPwdVis" visible="false" managed="false"/>
-                    <Button fx:id="eye1" text="SHOW" onAction="#togglePwd1"/>
+            <VBox fx:id="step2" spacing="10" visible="false" managed="false" styleClass="step-card">
+                <Label text="Set New Password" styleClass="step-title"/>
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <PasswordField fx:id="newPwdField" promptText="New password" HBox.hgrow="ALWAYS" styleClass="form-input-field"/>
+                    <TextField fx:id="newPwdVis" visible="false" managed="false" styleClass="form-input-field"/>
+                    <Button fx:id="eye1" text="SHOW" onAction="#togglePwd1" styleClass="small-ghost-button"/>
                 </HBox>
 
-                <HBox spacing="6">
-                    <PasswordField fx:id="confirmPwdField" promptText="Confirm" HBox.hgrow="ALWAYS"/>
-                    <TextField fx:id="confirmPwdVis" visible="false" managed="false"/>
-                    <Button fx:id="eye2" text="SHOW" onAction="#togglePwd2"/>
+                <HBox spacing="8" alignment="CENTER_LEFT">
+                    <PasswordField fx:id="confirmPwdField" promptText="Confirm" HBox.hgrow="ALWAYS" styleClass="form-input-field"/>
+                    <TextField fx:id="confirmPwdVis" visible="false" managed="false" styleClass="form-input-field"/>
+                    <Button fx:id="eye2" text="SHOW" onAction="#togglePwd2" styleClass="small-ghost-button"/>
                 </HBox>
 
-                <HBox spacing="4">
-                    <Rectangle fx:id="seg1" width="40" height="6"/>
-                    <Rectangle fx:id="seg2" width="40" height="6"/>
-                    <Rectangle fx:id="seg3" width="40" height="6"/>
-                    <Rectangle fx:id="seg4" width="40" height="6"/>
+                <HBox spacing="4" styleClass="strength-row">
+                    <Rectangle fx:id="seg1" width="36" height="6"/>
+                    <Rectangle fx:id="seg2" width="36" height="6"/>
+                    <Rectangle fx:id="seg3" width="36" height="6"/>
+                    <Rectangle fx:id="seg4" width="36" height="6"/>
                 </HBox>
-                <Label fx:id="strengthLbl"/>
-                <Label fx:id="matchLbl"/>
-                <Label fx:id="err2" style="-fx-text-fill:#E24B4A;"/>
+                <Label fx:id="strengthLbl" styleClass="helper-text"/>
+                <VBox spacing="2">
+                    <Label fx:id="r1" text="12+ characters" styleClass="helper-text"/>
+                    <Label fx:id="r2" text="Upper and lower case" styleClass="helper-text"/>
+                    <Label fx:id="r3" text="Contains a number" styleClass="helper-text"/>
+                    <Label fx:id="r4" text="Contains a special character" styleClass="helper-text"/>
+                </VBox>
+                <Label fx:id="matchLbl" styleClass="helper-text"/>
+                <Label fx:id="err2" styleClass="warn-label"/>
 
-                <HBox spacing="8">
-                    <Button fx:id="nextBtn2" text="Continue" onAction="#step2Next"/>
-                    <Button fx:id="backBtn2" text="Back" onAction="#backBtn2"/>
+                <HBox spacing="10" alignment="CENTER">
+                    <Button fx:id="nextBtn2" text="Continue" onAction="#step2Next" styleClass="primary-button"/>
+                    <Button fx:id="backBtn2" text="Back" onAction="#backBtn2" styleClass="ghost-button"/>
+                </HBox>
+            </VBox>
+
+            <!-- STEP 2b: Export Key Mnemonic -->
+            <VBox fx:id="step2b" spacing="10" visible="false" managed="false" styleClass="step-card">
+                <Label text="Export Key (Backup)" styleClass="step-title"/>
+                <Label fx:id="exportKeyWarning"
+                       text="This 12-word export key lets you back up and restore your vault independently of your recovery code. Write it down and store it safely."
+                       styleClass="helper-text" wrapText="true"/>
+                <Label fx:id="exportKeyMnemonic" styleClass="helper-text" wrapText="true"/>
+                <HBox spacing="10" alignment="CENTER">
+                    <Button text="Copy Export Key" onAction="#copyExportKey" styleClass="ghost-button"/>
+                </HBox>
+                <CheckBox fx:id="exportKeyWrittenCheck" text="I have written down the export key" styleClass="step-checkbox"/>
+                <Label fx:id="err2b" styleClass="warn-label"/>
+                <HBox spacing="10" alignment="CENTER">
+                    <Button fx:id="nextBtn2b" text="Continue" onAction="#step2bNext" styleClass="primary-button"/>
+                    <Button fx:id="backBtn2b" text="Back" onAction="#backBtn2b" styleClass="ghost-button"/>
                 </HBox>
             </VBox>
 
             <!-- STEP 3 -->
-            <VBox fx:id="step3" spacing="8" visible="false" managed="false">
-                <Label text="Confirm Reset"/>
-                <Label fx:id="confirmationMsg"/>
-                <Label fx:id="err3" style="-fx-text-fill:#E24B4A;"/>
-                <HBox spacing="8">
-                    <Button fx:id="backBtn3" text="Back" onAction="#backBtn3"/>
-                    <Button fx:id="completeBtn" text="Complete Reset" onAction="#completeRecovery"/>
+            <VBox fx:id="step3" spacing="10" visible="false" managed="false" styleClass="step-card">
+                <Label text="Confirm Reset" styleClass="step-title"/>
+                <Label fx:id="confirmationMsg" styleClass="helper-text"/>
+                <Label fx:id="err3" styleClass="warn-label"/>
+                <HBox spacing="10" alignment="CENTER">
+                    <Button fx:id="backBtn3" text="Back" onAction="#backBtn3" styleClass="ghost-button"/>
+                    <Button fx:id="completeBtn" text="Complete Reset" onAction="#completeRecovery" styleClass="primary-button"/>
                 </HBox>
             </VBox>
 

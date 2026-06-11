@@ -90,15 +90,12 @@ function extractFormCredentials(form) {
     password: ''
   };
   
-  // Find username/email field
+  // Find username field (email inputs intentionally excluded)
   const usernameSelectors = [
-    'input[type="email"]',
     'input[name*="user"]',
-    'input[name*="email"]',
     'input[name*="login"]',
     'input[name*="username"]',
-    'input[placeholder*="user"]',
-    'input[placeholder*="email"]'
+    'input[placeholder*="user"]'
   ];
   
   for (const selector of usernameSelectors) {
@@ -156,7 +153,7 @@ function showSavePrompt() {
   banner.className = 'hv-save-banner';
   banner.innerHTML = `
     <div class="hv-banner-content">
-      <div class="hv-banner-icon">🔐</div>
+      <div class="hv-banner-icon"></div>
       <div class="hv-banner-text">
         <div class="hv-banner-title">Save password for ${siteName}?</div>
         <div class="hv-banner-subtitle">${capturedCredentials.username}</div>
@@ -232,20 +229,26 @@ function saveCredentials(hostname, siteName) {
     action: 'saveCredential',
     credential: credential
   }, (response) => {
+    if (chrome.runtime.lastError) {
+      showNotification('Failed to save: ' + chrome.runtime.lastError.message, true);
+      return;
+    }
     if (response && response.success) {
-      showSuccessNotification('Password saved!');
+      showNotification('Password saved!', false);
       capturedCredentials = null;
+    } else {
+      const message = response && (response.error || response.message)
+        ? (response.error || response.message)
+        : 'Failed to save credential';
+      showNotification(message, true);
     }
   });
 }
 
-/**
- * Show success notification
- */
-function showSuccessNotification(message) {
+function showNotification(message, isError) {
   const notification = document.createElement('div');
-  notification.className = 'hv-success-notification';
-  notification.textContent = '✅ ' + message;
+  notification.className = isError ? 'hv-error-notification' : 'hv-success-notification';
+  notification.textContent = (isError ? ' ' : ' ') + message;
   document.body.appendChild(notification);
   
   setTimeout(() => {
@@ -271,11 +274,12 @@ function initializeFormFields() {
     }
   });
   
-  // Find username/email inputs
+  // Find username inputs (exclude email inputs)
   const usernameInputs = document.querySelectorAll(
-    'input[type="email"], input[type="text"][name*="user"], ' +
-    'input[type="text"][name*="email"], input[type="text"][name*="login"], ' +
-    'input[type="text"][placeholder*="user"], input[type="text"][placeholder*="email"]'
+    'input[type="text"][name*="user"], ' +
+    'input[type="text"][name*="login"], ' +
+    'input[type="text"][name*="username"], ' +
+    'input[type="text"][placeholder*="user"]'
   );
   usernameInputs.forEach(input => {
     if (!input.hasAttribute('data-hv-listener')) {
@@ -306,7 +310,7 @@ function showCredentialsPopup(inputField) {
         popup.className = 'hv-credentials-popup';
         popup.innerHTML = `
           <div class="hv-popup-content">
-            <div class="hv-popup-header">🔐 Saved Passwords</div>
+            <div class="hv-popup-header">Saved Passwords</div>
             <div class="hv-popup-list">
               ${response.credentials.map((cred, idx) => `
                 <div class="hv-popup-item" data-index="${idx}" data-username="${cred.siteUsername}">
@@ -357,9 +361,10 @@ function showCredentialsPopup(inputField) {
 function autofillCredentials(credential) {
   // Find username input
   const usernameInputs = document.querySelectorAll(
-    'input[type="email"], input[type="text"][name*="user"], ' +
-    'input[type="text"][name*="email"], input[type="text"][name*="login"], ' +
-    'input[type="text"][placeholder*="user"], input[type="text"][placeholder*="email"]'
+    'input[type="text"][name*="user"], ' +
+    'input[type="text"][name*="login"], ' +
+    'input[type="text"][name*="username"], ' +
+    'input[type="text"][placeholder*="user"]'
   );
   
   if (usernameInputs.length > 0) {

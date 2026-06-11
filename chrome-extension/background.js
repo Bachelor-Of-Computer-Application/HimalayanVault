@@ -62,7 +62,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   try {
     switch (request.action) {
       case 'signup':
-        handleSignup(request.email, request.username, request.password)
+        handleSignup(request.username, request.password)
           .then(sendResponse)
           .catch(error => sendResponse({ success: false, error: error.message }));
         return true;
@@ -81,6 +81,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       case 'resetPassword':
         handleResetPassword(request.email, request.newPassword)
+          .then(sendResponse)
+          .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+
+      case 'verifyRecoveryMnemonic':
+        handleVerifyRecoveryMnemonic(request.username, request.words)
+          .then(sendResponse)
+          .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+
+      case 'resetPasswordWithRecovery':
+        handleResetPasswordWithRecovery(request.username, request.newPassword)
           .then(sendResponse)
           .catch(error => sendResponse({ success: false, error: error.message }));
         return true;
@@ -511,22 +523,43 @@ console.log(' Himalayan Vault Service Worker ready!');
 // --- Simple in-memory recovery code store for extension-only flows ---
 const recoveryCodes = {}; // email -> { code, expires }
 
-async function handleSignup(email, username, password) {
-  console.log('Signup request for', email, username);
-  if (!email || !username || !password) {
-    throw new Error('Email, username and password are required');
+function meetsSignupPasswordRequirements(password) {
+  return password.length >= 12
+    && /[A-Z]/.test(password)
+    && /[a-z]/.test(password)
+    && /[0-9]/.test(password)
+    && /[^A-Za-z0-9]/.test(password);
+}
+
+async function handleSignup(username, password) {
+  console.log('Signup request for', username);
+  if (!username || !password) {
+    throw new Error('Username and password are required');
   }
 
-  // Basic validation; in a real deployment this should call the server.
-  if (!validateEmail(email)) {
-    throw new Error('Invalid email address');
+  if (username.length < 3) {
+    throw new Error('Username must be at least 3 characters');
+  }
+  if (!meetsSignupPasswordRequirements(password)) {
+    throw new Error('Password must be 12+ characters with upper, lower, number, and special character');
   }
 
-  // Simulate async signup processing
-  await new Promise(r => setTimeout(r, 400));
+  const response = await apiCall('/signup', 'POST', { username, password });
 
-  console.log(' Simulated signup success for', username);
-  return { success: true, message: 'Signup successful' };
+  if (!response.success) {
+    throw new Error(response.message || 'Signup failed');
+  }
+
+  if (!response.recoveryWords || response.recoveryWords.length !== 16) {
+    throw new Error('Signup succeeded but recovery words were not returned by the server');
+  }
+
+  console.log('Signup successful for', username);
+  return {
+    success: true,
+    message: response.message || 'Signup successful',
+    recoveryWords: response.recoveryWords
+  };
 }
 
 async function handleSendRecoveryCode(email) {
@@ -576,6 +609,46 @@ async function handleResetPassword(email, newPassword) {
   await new Promise(r => setTimeout(r, 300));
   console.log(' Password reset simulated for', email);
   return { success: true, message: 'Password reset successful' };
+}
+
+async function handleVerifyRecoveryMnemonic(username, words) {
+  if (!username || !words || !Array.isArray(words)) {
+    throw new Error('Username and 16 recovery words are required');
+  }
+
+  const response = await apiCall('/recovery/verify', 'POST', {
+    username,
+    words
+  });
+
+  if (!response.success) {
+    throw new Error(response.message || 'Recovery words verification failed');
+  }
+
+  return {
+    success: true,
+    message: response.message || 'Recovery words verified'
+  };
+}
+
+async function handleResetPasswordWithRecovery(username, newPassword) {
+  if (!username || !newPassword) {
+    throw new Error('Username and new password required');
+  }
+
+  const response = await apiCall('/recovery/reset', 'POST', {
+    username,
+    newPassword
+  });
+
+  if (!response.success) {
+    throw new Error(response.message || 'Password reset failed');
+  }
+
+  return {
+    success: true,
+    message: response.message || 'Password reset successful'
+  };
 }
 
 function validateEmail(email) {

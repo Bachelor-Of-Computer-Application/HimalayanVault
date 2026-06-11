@@ -5,7 +5,7 @@ import com.himalayanvault.api.dto.LoginRequest;
 import com.himalayanvault.api.dto.LoginResponse;
 import com.himalayanvault.api.util.JsonUtil;
 import com.himalayanvault.auth.AuthManager;
-import com.himalayanvault.db.DatabaseManager;
+import com.himalayanvault.security.CredentialKeyDerivation;
 import com.himalayanvault.security.SessionManager;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -68,11 +68,11 @@ public class AuthHandler implements HttpHandler {
                 return;
             }
 
-            // Create session and derive encryption key
-            DatabaseManager db = DatabaseManager.getInstance();
-            byte[] salt = db.loadSalt(request.username);
-            String token = SessionManager.getInstance()
-                .createSession(request.username, request.password, salt);
+            // Create session with random salt for key derivation (distinct from password hash)
+            String token = SessionManager.getInstance().createSession(
+                    request.username,
+                    request.password,
+                    CredentialKeyDerivation.saltForUser(request.username));
 
             System.out.println("[AuthHandler] Login successful for user: " + request.username);
             LoginResponse response = new LoginResponse(true, token, "Login successful");

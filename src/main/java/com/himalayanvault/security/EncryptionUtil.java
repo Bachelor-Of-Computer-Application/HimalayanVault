@@ -52,7 +52,7 @@ public class EncryptionUtil {
             javax.crypto.spec.PBEKeySpec spec = new javax.crypto.spec.PBEKeySpec(
                 masterPassword.toCharArray(),
                 masterSalt,
-                100_000,  // iterations (same as AuthManager)
+                Pbkdf2PasswordHasher.ITERATIONS,
                 KEY_SIZE
             );
             byte[] key = skf.generateSecret(spec).getEncoded();

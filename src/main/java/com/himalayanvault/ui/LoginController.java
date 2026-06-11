@@ -7,12 +7,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.himalayanvault.auth.AuthManager;
 import com.himalayanvault.auth.BiometricHandler;
+import com.himalayanvault.security.CredentialKeyDerivation;
+import com.himalayanvault.security.SessionManager;
 
+import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
+import javafx.animation.ParallelTransition;
 import javafx.animation.Timeline;
+import javafx.animation.TranslateTransition;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
@@ -36,13 +40,17 @@ import javafx.util.Duration;
  */
 public class LoginController implements Initializable {
 
+    private static final double AUTH_WIDTH = 1024;
+    private static final double AUTH_HEIGHT = 640;
+
     // ── FXML injected fields ──────────────────────────────────────────
     @FXML private TextField     usernameField;
     @FXML private PasswordField passwordField;
-    @FXML private TextField     visibleField;
     @FXML private Button        eyeButton;
     @FXML private Button        unlockButton;
     @FXML private StackPane     rootPane;
+    @FXML private HBox          contentShell;
+    @FXML private VBox          heroPanel;
     @FXML private VBox          formWrapper;
     @FXML private HBox          headerSection;
     @FXML private Label         formTitle;
@@ -66,7 +74,6 @@ public class LoginController implements Initializable {
 
     // ── State ─────────────────────────────────────────────────────────
     private final AtomicInteger failedAttempts = new AtomicInteger(0);
-    private boolean             passwordVisible = false;
     private Timeline            lockoutTimer;
 
     // ── Services ──────────────────────────────────────────────────────
@@ -77,19 +84,11 @@ public class LoginController implements Initializable {
     @Override
     public void initialize(URL url, ResourceBundle rb) {
         makeLayoutResponsive();
+        Platform.runLater(this::playEntranceAnimation);
 
         // Sync PasswordField ↔ TextField for eye toggle
         passwordField.textProperty().addListener((obs, old, val) -> {
-            if (!passwordVisible) {
-                visibleField.setText(val);
-                updateStrengthBar(val);
-            }
-        });
-        visibleField.textProperty().addListener((obs, old, val) -> {
-            if (passwordVisible) {
-                passwordField.setText(val);
-                updateStrengthBar(val);
-            }
+            updateStrengthBar(val);
         });
 
         // Auto-focus password field
@@ -99,8 +98,6 @@ public class LoginController implements Initializable {
     private void makeLayoutResponsive() {
         usernameField.setMaxWidth(Double.MAX_VALUE);
         passwordField.setMaxWidth(Double.MAX_VALUE);
-        visibleField.setMaxWidth(Double.MAX_VALUE);
-        unlockButton.setMaxWidth(Double.MAX_VALUE);
         warnBox.setMaxWidth(Double.MAX_VALUE);
 
         rootPane.sceneProperty().addListener((obs, oldScene, scene) -> {
@@ -121,20 +118,27 @@ public class LoginController implements Initializable {
         double width = Math.max(sceneWidth, 320);
         boolean compact = width < 560;
 
-        double cardWidth = compact ? Math.min(width - 24, 320) : Math.min(width * 0.38, 420);
-        double contentWidth = Math.max(220, cardWidth - 24);
+        double cardWidth = compact ? Math.min(width - 24, 360) : Math.min(width * 0.42, 380);
+        double contentWidth = Math.max(260, cardWidth - 24);
         double edgePadding = compact ? 14 : 40;
 
         headerSection.setPadding(new Insets(compact ? 16 : 20, edgePadding, compact ? 16 : 20, edgePadding));
         headerSection.setSpacing(compact ? 10 : 12);
+        if (contentShell != null) {
+            contentShell.setSpacing(compact ? 16 : 28);
+            contentShell.setPadding(new Insets(compact ? 16 : 24, compact ? 20 : 40, compact ? 24 : 34, compact ? 20 : 40));
+        }
+        if (heroPanel != null) {
+            heroPanel.setVisible(!compact);
+            heroPanel.setManaged(!compact);
+        }
         formWrapper.setMaxWidth(cardWidth);
         formWrapper.setPrefWidth(cardWidth);
-        formWrapper.setSpacing(compact ? 8 : 10);
-        formWrapper.setPadding(new Insets(compact ? 8 : 10, compact ? 16 : 20, compact ? 12 : 14, compact ? 16 : 20));
+        formWrapper.setSpacing(compact ? 10 : 12);
+        formWrapper.setPadding(new Insets(compact ? 20 : 22, compact ? 20 : 24, compact ? 20 : 22, compact ? 20 : 24));
 
         usernameField.setPrefWidth(contentWidth);
         passwordField.setPrefWidth(contentWidth);
-        visibleField.setPrefWidth(contentWidth);
         warnBox.setMaxWidth(contentWidth);
 
         buttonContainer.setSpacing(compact ? 8 : 12);
@@ -144,8 +148,8 @@ public class LoginController implements Initializable {
 
         if (formTitle != null) {
             formTitle.setStyle(compact
-                ? "-fx-font-size: 14px; -fx-font-weight: 700; -fx-letter-spacing: 1px;"
-                : "-fx-font-size: 16px; -fx-font-weight: 700; -fx-letter-spacing: 2px;");
+                ? "-fx-font-size: 20px; -fx-font-weight: 800; -fx-letter-spacing: 1px;"
+                : "-fx-font-size: 24px; -fx-font-weight: 800; -fx-letter-spacing: 1px;");
         }
 
         if (compact) {
@@ -153,6 +157,37 @@ public class LoginController implements Initializable {
         } else {
             VBox.setMargin(formWrapper, new Insets(0, 20, 18, 20));
         }
+    }
+
+    private void playEntranceAnimation() {
+        if (heroPanel != null) {
+            heroPanel.setOpacity(0);
+            heroPanel.setTranslateX(-26);
+        }
+        if (formWrapper != null) {
+            formWrapper.setOpacity(0);
+            formWrapper.setTranslateX(28);
+        }
+
+        FadeTransition heroFade = new FadeTransition(Duration.millis(520), heroPanel);
+        heroFade.setFromValue(0);
+        heroFade.setToValue(1);
+        TranslateTransition heroSlide = new TranslateTransition(Duration.millis(520), heroPanel);
+        heroSlide.setFromX(-26);
+        heroSlide.setToX(0);
+
+        FadeTransition formFade = new FadeTransition(Duration.millis(620), formWrapper);
+        formFade.setFromValue(0);
+        formFade.setToValue(1);
+        TranslateTransition formSlide = new TranslateTransition(Duration.millis(620), formWrapper);
+        formSlide.setFromX(28);
+        formSlide.setToX(0);
+
+        ParallelTransition heroAnim = new ParallelTransition(heroFade, heroSlide);
+        ParallelTransition formAnim = new ParallelTransition(formFade, formSlide);
+        heroAnim.play();
+        formAnim.setDelay(Duration.millis(80));
+        formAnim.play();
     }
 
     // ── Unlock ────────────────────────────────────────────────────────
@@ -177,7 +212,11 @@ public class LoginController implements Initializable {
 
         if (valid) {
             failedAttempts.set(0);
-            navigateToVault(username);
+            String token = SessionManager.getInstance().createSession(
+                    username,
+                    password,
+                    CredentialKeyDerivation.saltForUser(username));
+            navigateToVault(username, token);
         } else {
             int attempts = failedAttempts.incrementAndGet();
             int remaining = MAX_ATTEMPTS - attempts;
@@ -223,7 +262,7 @@ public class LoginController implements Initializable {
 
     // ── Recovery ──────────────────────────────────────────────────────
     @FXML
-    private void handleRecovery(ActionEvent event) {
+    private void handleRecovery() {
         try {
             FXMLLoader loader = new FXMLLoader(
                 getClass().getResource("/fxml/recovery.fxml")
@@ -231,9 +270,11 @@ public class LoginController implements Initializable {
             loader.setClassLoader(getClass().getClassLoader());
             Parent root = loader.load();
             Stage stage = (Stage) unlockButton.getScene().getWindow();
-            stage.setScene(new Scene(root, 480, 680));
+            Scene scene = new Scene(root, AUTH_WIDTH, AUTH_HEIGHT);
+            scene.getStylesheets().add(getClass().getResource("/css/recovery.css").toExternalForm());
+            stage.setScene(scene);
             stage.setTitle("Himalayan Vault - Password Recovery");
-            stage.setResizable(true);
+            VaultController.configureAuthStage(stage);
             stage.centerOnScreen();
             System.out.println("[LoginController] Recovery screen opened successfully");
         } catch (IOException e) {
@@ -244,35 +285,6 @@ public class LoginController implements Initializable {
     }
 
     // ── Eye Toggle ────────────────────────────────────────────────────
-    @FXML
-    private void togglePasswordVisibility() {
-        passwordVisible = !passwordVisible;
-
-        if (passwordVisible) {
-            visibleField.setText(passwordField.getText());
-            visibleField.setVisible(true);
-            visibleField.setManaged(true);
-            passwordField.setVisible(false);
-            passwordField.setManaged(false);
-            eyeButton.setText("HIDE");
-            Platform.runLater(() -> {
-                visibleField.requestFocus();
-                visibleField.positionCaret(visibleField.getText().length());
-            });
-        } else {
-            passwordField.setText(visibleField.getText());
-            passwordField.setVisible(true);
-            passwordField.setManaged(true);
-            visibleField.setVisible(false);
-            visibleField.setManaged(false);
-            eyeButton.setText("SHOW");
-            Platform.runLater(() -> {
-                passwordField.requestFocus();
-                passwordField.positionCaret(passwordField.getText().length());
-            });
-        }
-    }
-
     // ── Strength Bar ──────────────────────────────────────────────────
     private void updateStrengthBar(String password) {
         if (password == null || password.isEmpty()) {
@@ -350,35 +362,47 @@ public class LoginController implements Initializable {
 
     // ── Navigation ────────────────────────────────────────────────────
     private void navigateToVault(String username) {
+        navigateToVault(username, null);
+    }
+
+    private void navigateToVault(String username, String token) {
         try {
             FXMLLoader loader = new FXMLLoader(
                 getClass().getResource("/fxml/vault.fxml")
             );
             Parent root = loader.load();
             VaultController controller = loader.getController();
+            if (token != null) {
+                controller.setSession(token);
+            }
             controller.setUsername(username);
             Stage stage = (Stage) unlockButton.getScene().getWindow();
-            Scene scene = new Scene(root, 900, 620);
-            scene.getStylesheets().add(getClass().getResource("/css/login.css").toExternalForm());
+            Scene scene = new Scene(root, VaultController.VAULT_WIDTH, VaultController.VAULT_HEIGHT);
+            scene.getStylesheets().add(getClass().getResource("/css/vault.css").toExternalForm());
             stage.setScene(scene);
             stage.setTitle("Himalayan Vault");
-        } catch (IOException e) {
+            VaultController.configureVaultStage(stage);
+            stage.centerOnScreen();
+        } catch (Exception e) {
+            e.printStackTrace();
             showWarning("Could not load vault screen: " + e.getMessage(), false);
         }
     }
 
     @FXML
-    private void navigateToSignup(ActionEvent event) {
+    private void navigateToSignup() {
         try {
             FXMLLoader loader = new FXMLLoader(
                 getClass().getResource("/fxml/signup.fxml")
             );
             Parent root = loader.load();
             Stage stage = (Stage) unlockButton.getScene().getWindow();
-            Scene scene = new Scene(root, 420, 540);
-            scene.getStylesheets().add(getClass().getResource("/css/login.css").toExternalForm());
+            Scene scene = new Scene(root, SignupController.SIGNUP_WIDTH, SignupController.SIGNUP_HEIGHT);
+            scene.getStylesheets().add(getClass().getResource("/css/signup.css").toExternalForm());
             stage.setScene(scene);
             stage.setTitle("Himalayan Vault - Create New Vault");
+            SignupController.configureSignupStage(stage);
+            stage.centerOnScreen();
         } catch (IOException e) {
             showWarning("Could not load signup screen: " + e.getMessage(), false);
         }
@@ -407,7 +431,6 @@ public class LoginController implements Initializable {
 
     private void clearPassword() {
         passwordField.clear();
-        visibleField.clear();
         setAllSegments(EMPTY_COLOR);
         strengthLabel.setText("");
         Platform.runLater(() -> passwordField.requestFocus());

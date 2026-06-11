@@ -46,7 +46,7 @@ public class RecoveryCodeManager {
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String ALGORITHM = "PBKDF2WithHmacSHA256";
-    private static final int ITERATIONS = 100_000;
+    private static final int ITERATIONS = 310_000;
     private static final int KEY_LENGTH = 256; // bits
 
     /**

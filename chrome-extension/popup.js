@@ -96,7 +96,7 @@ if (generateBtn) {
       if (response && response.success) {
         const genEl = document.getElementById('generatedPassword');
         if (genEl) genEl.innerHTML = `<strong>Generated Password:</strong><br><code>${response.password}</code>`;
-        navigator.clipboard.writeText(response.password).catch(() => {});
+        copyToClipboard(response.password, 'Password copied!');
       } else {
         alert('Error: ' + (response && response.error));
       }
@@ -349,6 +349,17 @@ function escapeHtml(text) {
 
 function copyToClipboard(text, message = 'Copied to clipboard!') {
   navigator.clipboard.writeText(text).then(() => {
+    setTimeout(() => {
+      navigator.clipboard.readText()
+        .then(current => {
+          if (current === text) {
+            return navigator.clipboard.writeText('');
+          }
+          return null;
+        })
+        .catch(() => {});
+    }, 30000);
+
     // Show success feedback
     const feedback = document.createElement('div');
     feedback.className = 'copy-feedback';
@@ -412,3 +423,14 @@ function showMainPanel(username) {
   mainPanel.style.display = 'block';
   document.querySelector('.header h2').textContent = `Welcome, ${username}!`;
 }
+
+    // Auto-focus input fields on hover
+    const inputFields = document.querySelectorAll('.form-group-line');
+    inputFields.forEach(field => {
+        field.addEventListener('mouseenter', function() {
+            const input = this.querySelector('input');
+            if (input) {
+                input.focus();
+            }
+        });
+    });
