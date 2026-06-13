@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.himalayanvault.security.EncryptionSecurityTests
--------------------------------------------------------------------------------
-Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.960 s -- in com.himalayanvault.security.EncryptionSecurityTests

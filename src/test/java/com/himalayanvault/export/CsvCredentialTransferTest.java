@@ -30,7 +30,7 @@ class CsvCredentialTransferTest {
         Credential roundTripped = imported.get(0);
         assertEquals(original.siteName, roundTripped.siteName);
         assertEquals(original.siteUrl, roundTripped.siteUrl);
-        assertEquals(original.siteUsername, roundTripped.siteUsername);
+        assertEquals(original.siteUsername, roundTripped.siteUsername); 
         assertEquals("plain,password", roundTripped.encryptedPassword);
         assertEquals(original.notes, roundTripped.notes);
     }
