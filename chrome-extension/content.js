@@ -21,10 +21,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 function initializeFormDetection() {
   // Detect form submissions
   document.addEventListener('submit', handleFormSubmit, true);
-  
+
   // Detect login button clicks
   detectLoginButtons();
-  
+
   // Add focus listeners to show credential popups
   initializeFormFields();
 }
@@ -36,13 +36,13 @@ function handleFormSubmit(e) {
   // Get the form
   const form = e.target;
   if (!form || form.tagName !== 'FORM') return;
-  
+
   // Extract credentials from the form
   const credentials = extractFormCredentials(form);
-  
+
   if (credentials && credentials.username && credentials.password) {
     capturedCredentials = credentials;
-    
+
     // After a short delay (form processing), show save prompt
     setTimeout(() => {
       checkLoginSuccess();
@@ -58,7 +58,7 @@ function detectLoginButtons() {
     'button[type="submit"], button[type="button"], input[type="submit"], ' +
     'a[onclick*="login"], a[onclick*="signin"], button[onclick*="login"]'
   );
-  
+
   buttons.forEach(btn => {
     const text = (btn.textContent || btn.value || '').toLowerCase();
     if (text.includes('login') || text.includes('signin') || text.includes('submit')) {
@@ -69,7 +69,7 @@ function detectLoginButtons() {
           const credentials = extractFormCredentials(form);
           if (credentials && credentials.username && credentials.password) {
             capturedCredentials = credentials;
-            
+
             // Check for success after delay
             setTimeout(() => {
               checkLoginSuccess();
@@ -89,7 +89,7 @@ function extractFormCredentials(form) {
     username: '',
     password: ''
   };
-  
+
   // Find username field (email inputs intentionally excluded)
   const usernameSelectors = [
     'input[name*="user"]',
@@ -97,7 +97,7 @@ function extractFormCredentials(form) {
     'input[name*="username"]',
     'input[placeholder*="user"]'
   ];
-  
+
   for (const selector of usernameSelectors) {
     const input = form.querySelector(selector);
     if (input && input.value) {
@@ -105,13 +105,13 @@ function extractFormCredentials(form) {
       break;
     }
   }
-  
+
   // Find password field
   const passwordInput = form.querySelector('input[type="password"]');
   if (passwordInput && passwordInput.value) {
     credentials.password = passwordInput.value;
   }
-  
+
   return credentials.username && credentials.password ? credentials : null;
 }
 
@@ -120,16 +120,16 @@ function extractFormCredentials(form) {
  */
 function checkLoginSuccess() {
   if (!capturedCredentials) return;
-  
+
   // Indicators that login succeeded:
   // 1. Page changed (URL changed)
   // 2. Error messages disappeared
   // 3. Dashboard/content loaded
-  
+
   const hasError = document.querySelector(
     '.error, .alert-danger, [class*="error"], [class*="invalid"], .form-error'
   );
-  
+
   if (!hasError) {
     // Login appears successful - show save prompt
     showSavePrompt();
@@ -144,10 +144,10 @@ function showSavePrompt() {
   if (document.querySelector('.hv-save-banner')) {
     return;
   }
-  
+
   const hostname = window.location.hostname.replace('www.', '');
   const siteName = hostname.split('.')[0].toUpperCase();
-  
+
   // Create save banner
   const banner = document.createElement('div');
   banner.className = 'hv-save-banner';
@@ -165,31 +165,31 @@ function showSavePrompt() {
       <button class="hv-banner-close">&times;</button>
     </div>
   `;
-  
+
   document.body.appendChild(banner);
-  
+
   // Trigger animation
   setTimeout(() => {
     banner.classList.add('hv-banner-show');
   }, 10);
-  
+
   // Handle save button
   banner.querySelector('.hv-btn-save').addEventListener('click', () => {
     saveCredentials(hostname, siteName);
     closeSavePrompt(banner);
   });
-  
+
   // Handle not now button
   banner.querySelector('.hv-btn-skip').addEventListener('click', () => {
     closeSavePrompt(banner);
     capturedCredentials = null;
   });
-  
+
   // Handle close button
   banner.querySelector('.hv-banner-close').addEventListener('click', () => {
     closeSavePrompt(banner);
   });
-  
+
   // Auto-close after 10 seconds
   setTimeout(() => {
     if (banner.parentNode) {
@@ -215,15 +215,18 @@ function closeSavePrompt(banner) {
  */
 function saveCredentials(hostname, siteName) {
   if (!capturedCredentials) return;
-  
+
   const credential = {
     siteName: siteName,
     siteUrl: hostname,
     siteUsername: capturedCredentials.username,
     encryptedPassword: capturedCredentials.password,
-    notes: 'Auto-saved from login'
+    notes: 'Auto-saved from login',
+    category: '',
+    tags: '',
+    favorite: false
   };
-  
+
   // Send to background script to save
   chrome.runtime.sendMessage({
     action: 'saveCredential',
@@ -250,15 +253,23 @@ function showNotification(message, isError) {
   notification.className = isError ? 'hv-error-notification' : 'hv-success-notification';
   notification.textContent = (isError ? ' ' : ' ') + message;
   document.body.appendChild(notification);
-  
+
   setTimeout(() => {
     notification.classList.add('hv-notification-show');
   }, 10);
-  
+
   setTimeout(() => {
     notification.classList.remove('hv-notification-show');
     setTimeout(() => notification.remove(), 300);
   }, 3000);
+}
+
+function showSuccessNotification(message) {
+  showNotification(message, false);
+}
+
+function showErrorNotification(message) {
+  showNotification(message, true);
 }
 
 /**
@@ -273,7 +284,7 @@ function initializeFormFields() {
       input.addEventListener('focus', () => showCredentialsPopup(input));
     }
   });
-  
+
   // Find username inputs (exclude email inputs)
   const usernameInputs = document.querySelectorAll(
     'input[type="text"][name*="user"], ' +
@@ -296,10 +307,10 @@ function showCredentialsPopup(inputField) {
   // Remove any existing popup
   const existingPopup = document.querySelector('.hv-credentials-popup');
   if (existingPopup) existingPopup.remove();
-  
+
   // Get current site
   const hostname = window.location.hostname.replace('www.', '');
-  
+
   // Request credentials from background
   chrome.runtime.sendMessage(
     { action: 'getCredentials', siteUrl: hostname },
@@ -322,14 +333,14 @@ function showCredentialsPopup(inputField) {
             <div class="hv-popup-footer">Himalayan Vault</div>
           </div>
         `;
-        
+
         // Position popup near input
         const rect = inputField.getBoundingClientRect();
         popup.style.top = (rect.bottom + window.scrollY + 5) + 'px';
         popup.style.left = (rect.left + window.scrollX) + 'px';
-        
+
         document.body.appendChild(popup);
-        
+
         // Add click listeners to fill buttons
         popup.querySelectorAll('.hv-popup-fill').forEach(btn => {
           btn.addEventListener('click', (e) => {
@@ -339,7 +350,7 @@ function showCredentialsPopup(inputField) {
             popup.remove();
           });
         });
-        
+
         // Close popup when clicking outside
         setTimeout(() => {
           const closeListener = (e) => {
@@ -366,13 +377,13 @@ function autofillCredentials(credential) {
     'input[type="text"][name*="username"], ' +
     'input[type="text"][placeholder*="user"]'
   );
-  
+
   if (usernameInputs.length > 0) {
     usernameInputs[0].value = credential.siteUsername;
     usernameInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
     usernameInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
   }
-  
+
   // Find password input
   const passwordInputs = document.querySelectorAll('input[type="password"]');
   if (passwordInputs.length > 0) {
@@ -380,8 +391,8 @@ function autofillCredentials(credential) {
     passwordInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
     passwordInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
   }
-  
-  showSuccessNotification('Password filled!');
+
+  showNotification('Password filled!', false);
 }
 
 // Initialize when page loads

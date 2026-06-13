@@ -4,3 +4,9 @@ update_styles.js
 update_popup.js
 fix_eye_btn.js
 fix_glass_d.js
+.git/
+target/
+*.db
+*.sqlite
+*.sqlite3
+*.log

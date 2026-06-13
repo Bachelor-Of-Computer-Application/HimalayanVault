@@ -13,6 +13,22 @@ const credentialsList = document.getElementById('credentialsList');
 const generateBtn = document.getElementById('generateBtn');
 const newCredForm = document.getElementById('newCredForm');
 
+function showSuccessNotification(message) {
+  showPopupNotification(message, false);
+}
+
+function showErrorNotification(message) {
+  showPopupNotification(message, true);
+}
+
+function showPopupNotification(message, isError) {
+  const feedback = document.createElement('div');
+  feedback.className = isError ? 'copy-feedback copy-feedback-error' : 'copy-feedback';
+  feedback.textContent = ' ' + message;
+  document.body.appendChild(feedback);
+  setTimeout(() => feedback.remove(), 2000);
+}
+
 /**
  * Check if API server is running
  */
@@ -33,12 +49,12 @@ async function checkApiServer() {
 // Initialize on load
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Popup initialized');
-  
+
   // Apply dark theme if system prefers it
   if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
-  
+
   // Check if API server is running
   const apiRunning = await checkApiServer();
   if (!apiRunning) {
@@ -49,10 +65,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       errorDiv.style.display = 'block';
     }
   }
-  
+
   // Check login status
   const response = await chrome.runtime.sendMessage({ action: 'isLoggedIn' });
-  
+
   if (response.loggedIn) {
     showMainPanel(response.username);
     loadCredentials();
@@ -153,11 +169,11 @@ function showQuickSaveOption() {
   const mainPanel = document.getElementById('mainPanel');
   const existingQuickSave = document.querySelector('.quick-save-prompt');
   if (existingQuickSave) existingQuickSave.remove();
-  
+
   const tabs = chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs[0]) {
       const hostname = new URL(tabs[0].url).hostname;
-      
+
       const promptDiv = document.createElement('div');
       promptDiv.className = 'quick-save-prompt';
       promptDiv.innerHTML = `
@@ -171,12 +187,12 @@ function showQuickSaveOption() {
         </div>
       `;
       mainPanel.insertBefore(promptDiv, mainPanel.firstChild);
-      
+
       document.getElementById('quickSaveYes').addEventListener('click', () => {
         quickSaveLoginCredentials(hostname);
         promptDiv.remove();
       });
-      
+
       document.getElementById('quickSaveNo').addEventListener('click', () => {
         promptDiv.remove();
       });
@@ -187,28 +203,31 @@ function showQuickSaveOption() {
 // Quick save the login credentials
 async function quickSaveLoginCredentials(hostname) {
   if (!capturedLoginCredentials) return;
-  
+
   const credential = {
     siteName: hostname.replace('www.', '').toUpperCase(),
     siteUrl: hostname,
     siteUsername: capturedLoginCredentials.username,
     encryptedPassword: capturedLoginCredentials.password,
-    notes: 'Auto-saved from login'
+    notes: 'Auto-saved from login',
+    category: '',
+    tags: '',
+    favorite: false
   };
-  
+
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'saveCredential',
       credential
     });
-    
+
     if (response.success) {
       const feedback = document.createElement('div');
       feedback.className = 'copy-feedback';
       feedback.textContent = ' Credentials saved!';
       document.body.appendChild(feedback);
       setTimeout(() => feedback.remove(), 2000);
-      
+
       loadCredentials();
       capturedLoginCredentials = null;
     } else {
@@ -241,7 +260,10 @@ if (newCredForm) {
       siteUrl: document.getElementById('siteUrl') ? document.getElementById('siteUrl').value : '',
       siteUsername: document.getElementById('siteUsername') ? document.getElementById('siteUsername').value : '',
       encryptedPassword: document.getElementById('sitePassword') ? document.getElementById('sitePassword').value : '',
-      notes: document.getElementById('siteNotes') ? document.getElementById('siteNotes').value : ''
+      notes: document.getElementById('siteNotes') ? document.getElementById('siteNotes').value : '',
+      category: document.getElementById('siteCategory') ? document.getElementById('siteCategory').value : '',
+      tags: document.getElementById('siteTags') ? document.getElementById('siteTags').value : '',
+      favorite: !!(document.getElementById('siteFavorite') && document.getElementById('siteFavorite').checked)
     };
 
     try {
@@ -273,13 +295,13 @@ if (newCredForm) {
 async function loadCredentials() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const url = new URL(tabs[0].url).hostname;
-  
+
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'getCredentials',
       siteUrl: url
     });
-    
+
     if (response.success) {
       displayCredentials(response.credentials);
     } else {
@@ -295,21 +317,23 @@ function displayCredentials(credentials) {
     credentialsList.innerHTML = '<p>No credentials saved for this site</p>';
     return;
   }
-  
+
   credentialsList.innerHTML = credentials.map((cred, index) => `
     <div class="credential-item" data-index="${index}" data-credential-id="${cred.id}">
-      <h4>${cred.siteName}</h4>
-      <p><strong>URL:</strong> ${cred.siteUrl}</p>
-      <p><strong>Username:</strong> <span class="username-value">${cred.siteUsername}</span></p>
-      ${cred.notes ? `<p><strong>Notes:</strong> ${cred.notes}</p>` : ''}
+      <h4>${cred.favorite ? '* ' : ''}${escapeHtml(cred.siteName || cred.siteUrl || '')}</h4>
+      <p><strong>URL:</strong> ${escapeHtml(cred.siteUrl || '')}</p>
+      <p><strong>Username:</strong> <span class="username-value">${escapeHtml(cred.siteUsername || '')}</span></p>
+      ${cred.category ? `<p><strong>Category:</strong> ${escapeHtml(cred.category)}</p>` : ''}
+      ${cred.tags ? `<p><strong>Tags:</strong> ${escapeHtml(cred.tags)}</p>` : ''}
+      ${cred.notes ? `<p><strong>Notes:</strong> ${escapeHtml(cred.notes)}</p>` : ''}
       <div class="actions">
-        <button class="btn btn-secondary btn-copy" data-username="${escapeHtml(cred.siteUsername)}">Copy Username</button>
+        <button class="btn btn-secondary btn-copy" data-username="${escapeHtml(cred.siteUsername || '')}">Copy Username</button>
         <button class="btn btn-secondary btn-autofill" data-credential-index="${index}">Autofill</button>
         <button class="btn btn-secondary btn-delete" data-credential-id="${cred.id}">Delete</button>
       </div>
     </div>
   `).join('');
-  
+
   // Attach event listeners
   document.querySelectorAll('.btn-copy').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -318,7 +342,7 @@ function displayCredentials(credentials) {
       copyToClipboard(username, 'Username copied!');
     });
   });
-  
+
   document.querySelectorAll('.btn-autofill').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -326,7 +350,7 @@ function displayCredentials(credentials) {
       autofillPage(credentials[index]);
     });
   });
-  
+
   document.querySelectorAll('.btn-delete').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -337,6 +361,7 @@ function displayCredentials(credentials) {
 }
 
 function escapeHtml(text) {
+  text = String(text || '');
   const map = {
     '&': '&amp;',
     '<': '&lt;',
@@ -357,7 +382,7 @@ function copyToClipboard(text, message = 'Copied to clipboard!') {
           }
           return null;
         })
-        .catch(() => {});
+        .catch(() => { });
     }, 30000);
 
     // Show success feedback
@@ -374,19 +399,19 @@ function copyToClipboard(text, message = 'Copied to clipboard!') {
 async function autofillPage(credential) {
   // Get the active tab
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  
+
   if (!tabs[0]) {
     alert('Could not access active tab');
     return;
   }
-  
+
   // Send autofill command to content script
   try {
     await chrome.tabs.sendMessage(tabs[0].id, {
       action: 'autofill',
       credential: credential
     });
-    
+
     // Show success message
     const feedback = document.createElement('div');
     feedback.className = 'copy-feedback';
@@ -404,7 +429,7 @@ async function deleteCredential(credentialId) {
       action: 'deleteCredential',
       credentialId
     });
-    
+
     if (response.success) {
       loadCredentials();
     } else {
@@ -424,13 +449,13 @@ function showMainPanel(username) {
   document.querySelector('.header h2').textContent = `Welcome, ${username}!`;
 }
 
-    // Auto-focus input fields on hover
-    const inputFields = document.querySelectorAll('.form-group-line');
-    inputFields.forEach(field => {
-        field.addEventListener('mouseenter', function() {
-            const input = this.querySelector('input');
-            if (input) {
-                input.focus();
-            }
-        });
-    });
+// Auto-focus input fields on hover
+const inputFields = document.querySelectorAll('.form-group-line');
+inputFields.forEach(field => {
+  field.addEventListener('mouseenter', function () {
+    const input = this.querySelector('input');
+    if (input) {
+      input.focus();
+    }
+  });
+});

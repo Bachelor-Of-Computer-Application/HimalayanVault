@@ -7,4 +7,7 @@ public class CredentialRequest {
     public String siteUsername;
     public String encryptedPassword;  // AES-GCM encrypted
     public String notes;
+    public String category;
+    public String tags;
+    public boolean favorite;
 }

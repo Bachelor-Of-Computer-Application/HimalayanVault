@@ -3,10 +3,10 @@ package com.himalayanvault.ui;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ResourceBundle;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import com.himalayanvault.auth.AuthManager;
 import com.himalayanvault.auth.BiometricHandler;
+import com.himalayanvault.auth.AuthManager.VerificationResult;
 import com.himalayanvault.security.CredentialKeyDerivation;
 import com.himalayanvault.security.SessionManager;
 
@@ -30,7 +30,6 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -63,18 +62,9 @@ public class LoginController implements Initializable {
     @FXML private HBox warnBox;
     @FXML private Label warnLabel;
 
-    // ── Constants ─────────────────────────────────────────────────────
-    private static final int    MAX_ATTEMPTS      = 5;
-    private static final int    LOCKOUT_SECONDS   = 30;
-    private static final String WEAK_COLOR        = "#E24B4A";
-    private static final String FAIR_COLOR        = "#EF9F27";
-    private static final String GOOD_COLOR        = "#028090";
-    private static final String STRONG_COLOR      = "#2E6B0A";
-    private static final String EMPTY_COLOR       = "#DDE3EE";
-
     // ── State ─────────────────────────────────────────────────────────
-    private final AtomicInteger failedAttempts = new AtomicInteger(0);
-    private Timeline            lockoutTimer;
+    private LockoutUiHelper lockoutUi;
+    private PasswordStrengthMeter strengthMeter;
 
     // ── Services ──────────────────────────────────────────────────────
     private final AuthManager     authManager     = new AuthManager();
@@ -83,15 +73,19 @@ public class LoginController implements Initializable {
     // ─────────────────────────────────────────────────────────────────
     @Override
     public void initialize(URL url, ResourceBundle rb) {
+        strengthMeter = new PasswordStrengthMeter(seg1, seg2, seg3, seg4, strengthLabel);
+        lockoutUi = new LockoutUiHelper(
+                () -> usernameField.getText(),
+                warnLabel,
+                warnBox);
+        lockoutUi.register(passwordField, unlockButton, eyeButton);
+        lockoutUi.start();
+
         makeLayoutResponsive();
         Platform.runLater(this::playEntranceAnimation);
 
-        // Sync PasswordField ↔ TextField for eye toggle
-        passwordField.textProperty().addListener((obs, old, val) -> {
-            updateStrengthBar(val);
-        });
+        passwordField.textProperty().addListener((obs, old, val) -> strengthMeter.update(val));
 
-        // Auto-focus password field
         Platform.runLater(() -> passwordField.requestFocus());
     }
 
@@ -202,36 +196,39 @@ public class LoginController implements Initializable {
             return;
         }
 
+        if (!lockoutUi.ensureNotLocked()) {
+            showWarning(authManager.lockoutMessage(username.trim()), false);
+            return;
+        }
+
         if (password == null || password.isBlank()) {
             shakeField();
             showWarning("Please enter your master password.", false);
             return;
         }
 
-        boolean valid = authManager.verifyMasterPassword(username, password);
+        VerificationResult result = authManager.verifyMasterPassword(username.trim(), password);
 
-        if (valid) {
-            failedAttempts.set(0);
+        if (result == VerificationResult.SUCCESS) {
+            lockoutUi.clearFailure(username.trim());
             String token = SessionManager.getInstance().createSession(
-                    username,
+                    username.trim(),
                     password,
-                    CredentialKeyDerivation.saltForUser(username));
-            navigateToVault(username, token);
-        } else {
-            int attempts = failedAttempts.incrementAndGet();
-            int remaining = MAX_ATTEMPTS - attempts;
-            clearPassword();
-
-            if (remaining > 0) {
-                showWarning(
-                    "Incorrect password. " + remaining +
-                    " attempt" + (remaining == 1 ? "" : "s") + " remaining.",
-                    false
-                );
-            } else {
-                startLockout();
-            }
+                    CredentialKeyDerivation.saltForUser(username.trim()));
+            navigateToVault(username.trim(), token);
+            return;
         }
+
+        if (result == VerificationResult.LOCKED) {
+            lockoutUi.refresh();
+            showWarning(authManager.lockoutMessage(username.trim()), false);
+            clearPassword();
+            return;
+        }
+
+        clearPassword();
+        lockoutUi.showFailure(username.trim(), "Incorrect password.");
+        showWarning(authManager.failureMessage(username.trim()), false);
     }
 
     // ── Biometric ─────────────────────────────────────────────────────
@@ -240,6 +237,11 @@ public class LoginController implements Initializable {
         String username = usernameField.getText();
         if (username == null || username.isBlank()) {
             showWarning("Please enter your username first.", false);
+            return;
+        }
+
+        if (!lockoutUi.ensureNotLocked()) {
+            showWarning(authManager.lockoutMessage(username.trim()), false);
             return;
         }
 
@@ -284,81 +286,9 @@ public class LoginController implements Initializable {
         }
     }
 
-    // ── Eye Toggle ────────────────────────────────────────────────────
     // ── Strength Bar ──────────────────────────────────────────────────
-    private void updateStrengthBar(String password) {
-        if (password == null || password.isEmpty()) {
-            if (seg1 != null) setAllSegments(EMPTY_COLOR);
-            if (strengthLabel != null) strengthLabel.setText("");
-            return;
-        }
 
-        int score = 0;
-        if (password.length() >= 8)                                    score++;
-        if (password.length() >= 12)                                   score++;
-        if (password.matches(".*[A-Z].*") && password.matches(".*[0-9].*")) score++;
-        if (password.matches(".*[^A-Za-z0-9].*"))                      score++;
-
-        String color;
-        String label;
-        switch (score) {
-            case 1 -> { color = WEAK_COLOR;   label = "Weak"; }
-            case 2 -> { color = FAIR_COLOR;   label = "Fair"; }
-            case 3 -> { color = GOOD_COLOR;   label = "Good"; }
-            case 4 -> { color = STRONG_COLOR; label = "Strong"; }
-            default -> { color = EMPTY_COLOR; label = ""; }
-        }
-
-        // If any strength rectangle is missing, avoid touching them to prevent NPEs
-        if (seg1 == null || seg2 == null || seg3 == null || seg4 == null) {
-            if (strengthLabel != null) {
-                strengthLabel.setText("Strength: " + label);
-                strengthLabel.setStyle("-fx-text-fill: " + color + ";");
-            }
-            return;
-        }
-
-        Rectangle[] segs = { seg1, seg2, seg3, seg4 };
-        for (int i = 0; i < 4; i++) {
-            segs[i].setFill(Color.web(i < score ? color : EMPTY_COLOR));
-        }
-        if (strengthLabel != null) {
-            strengthLabel.setText("Strength: " + label);
-            strengthLabel.setStyle("-fx-text-fill: " + color + ";");
-        }
-    }
-
-    private void setAllSegments(String hex) {
-        Color c = Color.web(hex);
-        seg1.setFill(c); seg2.setFill(c); seg3.setFill(c); seg4.setFill(c);
-    }
-
-    // ── Lockout ───────────────────────────────────────────────────────
-    private void startLockout() {
-        unlockButton.setDisable(true);
-        AtomicInteger countdown = new AtomicInteger(LOCKOUT_SECONDS);
-
-        lockoutTimer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
-            int sec = countdown.decrementAndGet();
-            if (sec <= 0) {
-                lockoutTimer.stop();
-                failedAttempts.set(0);
-                unlockButton.setDisable(false);
-                hideWarning();
-            } else {
-                showWarning(
-                    "Too many failed attempts. Vault locked for " + sec + " seconds.",
-                    false
-                );
-            }
-        }));
-        lockoutTimer.setCycleCount(LOCKOUT_SECONDS);
-        lockoutTimer.play();
-        showWarning(
-            "Too many failed attempts. Vault locked for " + LOCKOUT_SECONDS + " seconds.",
-            false
-        );
-    }
+    // ── Lockout handled by LockoutUiHelper + AuthLockoutManager ───────
 
     // ── Navigation ────────────────────────────────────────────────────
     private void navigateToVault(String username) {
@@ -431,9 +361,12 @@ public class LoginController implements Initializable {
 
     private void clearPassword() {
         passwordField.clear();
-        setAllSegments(EMPTY_COLOR);
-        strengthLabel.setText("");
-        Platform.runLater(() -> passwordField.requestFocus());
+        strengthMeter.clear();
+        Platform.runLater(() -> {
+            if (!passwordField.isDisabled()) {
+                passwordField.requestFocus();
+            }
+        });
     }
 
     // ── Shake animation ───────────────────────────────────────────────

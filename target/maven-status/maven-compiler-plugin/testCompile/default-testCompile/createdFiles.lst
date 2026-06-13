@@ -1,5 +1,9 @@
+com/himalayanvault/security/PasswordStrengthTest.class
 com/himalayanvault/api/CredentialSaveApiTest$LoginPayload.class
+com/himalayanvault/auth/AuthLockoutManagerTest.class
+com/himalayanvault/api/SignupApiTest$SignupPayload.class
 com/himalayanvault/api/CredentialSaveApiTest.class
 com/himalayanvault/api/SignupApiTest.class
+com/himalayanvault/export/VaultExportImportTests.class
 com/himalayanvault/api/CredentialSaveApiTest$SignupPayload.class
-com/himalayanvault/api/SignupApiTest$SignupPayload.class
+com/himalayanvault/security/EncryptionSecurityTests.class

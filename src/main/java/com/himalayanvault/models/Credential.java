@@ -15,6 +15,9 @@ public class Credential {
     public int accountNumber = 1;          // Support multiple accounts per site
     public String encryptedPassword;       // AES-GCM encrypted
     public String notes;
+    public String category;
+    public String tags;
+    public boolean favorite;
     public long created_at;                // Timestamp in milliseconds
     public long updated_at;                // Timestamp in milliseconds
 
@@ -24,7 +27,7 @@ public class Credential {
 
     public Credential(long id, String ownerUsername, String siteUrl, String siteName,
                      String siteUsername, int accountNumber, String encryptedPassword, String notes,
-                     long createdAt, long updatedAt) {
+                     String category, String tags, boolean favorite, long createdAt, long updatedAt) {
         this.id = id;
         this.ownerUsername = ownerUsername;
         this.siteUrl = siteUrl;
@@ -33,8 +36,18 @@ public class Credential {
         this.accountNumber = accountNumber;
         this.encryptedPassword = encryptedPassword;
         this.notes = notes;
+        this.category = category;
+        this.tags = tags;
+        this.favorite = favorite;
         this.created_at = createdAt;
         this.updated_at = updatedAt;
+    }
+
+    public Credential(long id, String ownerUsername, String siteUrl, String siteName,
+                     String siteUsername, int accountNumber, String encryptedPassword, String notes,
+                     long createdAt, long updatedAt) {
+        this(id, ownerUsername, siteUrl, siteName, siteUsername, accountNumber, encryptedPassword, notes,
+                "", "", false, createdAt, updatedAt);
     }
 
     // Backward compatibility constructor (without accountNumber)
@@ -46,8 +59,7 @@ public class Credential {
 
     @Override
     public String toString() {
-        return String.format("Credential{id=%d, site=%s, username=%s, account=%d}", 
-            id, siteUrl, siteUsername, accountNumber);
+        return String.format("Credential{id=%d, site=%s, username=%s, account=%d, category=%s, favorite=%s}",
+            id, siteUrl, siteUsername, accountNumber, category, favorite);
     }
 }
-

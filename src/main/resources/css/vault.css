@@ -54,6 +54,19 @@
     -fx-border-color: #00d4ff;
 }
 
+.category-filter {
+    -fx-background-color: #111a33;
+    -fx-border-color: #1f3a66;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.category-filter .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #e8f7ff;
+    -fx-font-size: 12px;
+}
+
 .credential-table {
     -fx-background-color: #0d152b;
     -fx-border-color: #1f3a66;
@@ -180,11 +193,21 @@
     -fx-padding: 8 10 8 10;
 }
 
+.dialog-check {
+    -fx-text-fill: #dbe7f7;
+    -fx-font-size: 12px;
+}
+
 .dialog-field:focused {
     -fx-border-color: #00d4ff;
 }
 
 .dialog-label {
     -fx-text-fill: #b8cce0;
+    -fx-font-size: 12px;
+}
+
+.helper-text {
+    -fx-text-fill: rgba(232, 247, 255, 0.76);
     -fx-font-size: 12px;
 }

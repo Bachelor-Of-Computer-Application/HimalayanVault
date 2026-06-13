@@ -88,6 +88,78 @@ public class VaultExportImportTests {
         assertFalse(merge.mergedCredentials.stream().noneMatch(c -> "https://keep.local".equals(c.siteUrl)));
     }
 
+    @Test
+    @DisplayName("CSV import maps Bitwarden login fields")
+    void testBitwardenCsvImport() {
+        String csv = """
+                folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp
+                Work,1,login,Example,"hello, note",,,https://example.com,alice,secret,
+                """;
+
+        List<Credential> imported = new CsvCredentialTransfer().importCsv(csv);
+
+        assertEquals(1, imported.size());
+        assertEquals("Example", imported.get(0).siteName);
+        assertEquals("https://example.com", imported.get(0).siteUrl);
+        assertEquals("alice", imported.get(0).siteUsername);
+        assertEquals("secret", imported.get(0).encryptedPassword);
+        assertEquals("Work", imported.get(0).category);
+        assertTrue(imported.get(0).favorite);
+    }
+
+    @Test
+    @DisplayName("CSV import maps LastPass fields")
+    void testLastPassCsvImport() {
+        String csv = """
+                url,username,password,extra,name,grouping,fav
+                https://vault.local,bob,p@ss,notes,Vault,Personal,0
+                """;
+
+        List<Credential> imported = new CsvCredentialTransfer().importCsv(csv);
+
+        assertEquals(1, imported.size());
+        assertEquals("Vault", imported.get(0).siteName);
+        assertEquals("https://vault.local", imported.get(0).siteUrl);
+        assertEquals("bob", imported.get(0).siteUsername);
+        assertEquals("p@ss", imported.get(0).encryptedPassword);
+        assertEquals("Personal", imported.get(0).category);
+        assertFalse(imported.get(0).favorite);
+    }
+
+    @Test
+    @DisplayName("CSV import maps 1Password fields")
+    void testOnePasswordCsvImport() {
+        String csv = """
+                title,website,username,password,notes
+                Portal,https://portal.local,dana,hunter2,"from 1Password"
+                """;
+
+        List<Credential> imported = new CsvCredentialTransfer().importCsv(csv);
+
+        assertEquals(1, imported.size());
+        assertEquals("Portal", imported.get(0).siteName);
+        assertEquals("https://portal.local", imported.get(0).siteUrl);
+        assertEquals("dana", imported.get(0).siteUsername);
+        assertEquals("hunter2", imported.get(0).encryptedPassword);
+        assertEquals("from 1Password", imported.get(0).notes);
+    }
+
+    @Test
+    @DisplayName("CSV export writes plaintext migration rows with escaping")
+    void testCsvExport() {
+        CsvCredentialTransfer transfer = new CsvCredentialTransfer();
+        Credential credential = credential("https://example.com", "alice", "stored-password");
+        credential.siteName = "Example, Inc";
+        credential.notes = "line 1\nline 2";
+
+        String csv = transfer.exportCsv(List.of(credential), c -> "plain,password");
+
+        assertTrue(csv.startsWith("name,loginUri,loginUsername,loginPassword,notes\n"));
+        assertTrue(csv.contains("\"Example, Inc\""));
+        assertTrue(csv.contains("\"plain,password\""));
+        assertTrue(csv.contains("\"line 1\nline 2\""));
+    }
+
     private static List<Credential> credentials() {
         return List.of(
                 credential("https://example.com", "alice", "encrypted-1"),

@@ -10,6 +10,7 @@ import com.himalayanvault.auth.RecoveryCodeManager;
 import com.himalayanvault.export.VaultExporter;
 import com.himalayanvault.security.ClipboardProtector;
 import com.himalayanvault.security.CredentialKeyDerivation;
+import com.himalayanvault.security.PasswordStrength;
 import com.himalayanvault.security.SessionManager;
 
 import javafx.animation.FadeTransition;
@@ -22,6 +23,7 @@ import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.paint.Color;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
@@ -30,7 +32,6 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -79,22 +80,17 @@ public class SignupController implements Initializable {
     private String          exportKeyMnemonicPhrase;
     private boolean         onExportKeyStep = false;
     private static final int[] CHK = { 2, 6, 11 };
-
-    /* ── Colours ─────────────────────────────────────────────────── */
-    private static final Color C_WEAK   = Color.web("#E24B4A");
-    private static final Color C_FAIR   = Color.web("#EF9F27");
-    private static final Color C_GOOD   = Color.web("#028090");
-    private static final Color C_STRONG = Color.web("#2E6B0A");
-    private static final Color C_EMPTY  = Color.web("#DDE3EE");
+    private PasswordStrengthMeter strengthMeter;
 
     private final AuthManager         auth     = new AuthManager();
     private final RecoveryCodeManager recovery = new RecoveryCodeManager();
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
+        strengthMeter = new PasswordStrengthMeter(seg1, seg2, seg3, seg4, strengthLbl);
         Platform.runLater(this::playEntranceAnimation);
-        pwdField.textProperty().addListener((o, old, v) -> { if (!e1Open) { pwdVis.setText(v); updateBar(v); updateRules(v); updateMatch(); } });
-        pwdVis.textProperty().addListener((o, old, v) ->   { if (e1Open)  { pwdField.setText(v); updateBar(v); updateRules(v); updateMatch(); } });
+        pwdField.textProperty().addListener((o, old, v) -> { if (!e1Open) { pwdVis.setText(v); strengthMeter.update(v); updateRules(v); updateMatch(); } });
+        pwdVis.textProperty().addListener((o, old, v) ->   { if (e1Open)  { pwdField.setText(v); strengthMeter.update(v); updateRules(v); updateMatch(); } });
         confirmField.textProperty().addListener((o, old, v) -> { if (!e2Open) { confirmVis.setText(v); updateMatch(); } });
         confirmVis.textProperty().addListener((o, old, v) ->   { if (e2Open)  { confirmField.setText(v); updateMatch(); } });
         Platform.runLater(() -> pwdField.requestFocus());
@@ -120,7 +116,7 @@ public class SignupController implements Initializable {
 
         if (username.isBlank()) { err1.setText("Please enter a username."); return; }
         if (pwd.isBlank()) { err1.setText("Please enter a master password."); return; }
-        if (!meetsReqs(pwd)) { err1.setText("Password does not meet all requirements."); return; }
+        if (!PasswordStrength.meetsMasterPasswordRequirements(pwd)) { err1.setText("Password does not meet all requirements."); return; }
         if (!pwd.equals(con)) { err1.setText("Passwords do not match."); confirmField.requestFocus(); return; }
 
         err1.setText("");
@@ -375,30 +371,6 @@ public class SignupController implements Initializable {
         }
     }
 
-    private void updateBar(String p) {
-        int sc = 0;
-        if (p != null && p.length() >= 8) sc++;
-        if (p != null && p.length() >= 12) sc++;
-        if (p != null && p.matches(".*[A-Z].*") && p.matches(".*[0-9].*")) sc++;
-        if (p != null && p.matches(".*[^A-Za-z0-9].*")) sc++;
-        Color[] cols = {C_WEAK, C_FAIR, C_GOOD, C_STRONG};
-        Rectangle[] segs = {seg1, seg2, seg3, seg4};
-        Color c = sc > 0 ? cols[sc - 1] : C_EMPTY;
-        for (int i = 0; i < 4; i++) segs[i].setFill(i < sc ? c : C_EMPTY);
-        if (sc > 0) {
-            String[] lbl = {"Weak", "Fair", "Good", "Strong"};
-            strengthLbl.setText("Strength: " + lbl[sc - 1]);
-            strengthLbl.setStyle("-fx-text-fill:" + toHex(c) + ";");
-        } else {
-            strengthLbl.setText("");
-        }
-    }
-
-    private String toHex(Color c) {
-        return String.format("#%02X%02X%02X",
-            (int) (c.getRed() * 255), (int) (c.getGreen() * 255), (int) (c.getBlue() * 255));
-    }
-
     private void updateRules(String p) {
         if (p == null) p = "";
         applyRule(r1, p.length() >= 12, "12+ characters");
@@ -421,8 +393,7 @@ public class SignupController implements Initializable {
     }
 
     private boolean meetsReqs(String p) {
-        return p.length() >= 12 && p.matches(".*[A-Z].*") && p.matches(".*[a-z].*")
-            && p.matches(".*[0-9].*") && p.matches(".*[^A-Za-z0-9].*");
+        return PasswordStrength.meetsMasterPasswordRequirements(p);
     }
 
     private boolean swap(PasswordField pf, TextField tf, boolean open, Button btn) {

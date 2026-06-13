@@ -20,8 +20,8 @@ public class DatabaseManager {
     private static final String DB_NAME = "himalayan-vault.db";
     private static final String DB_PATH = System.getProperty("user.home") + "/.himalayan-vault/";
     private static final String DB_URL_BASE = "jdbc:sqlite:" + DB_PATH + DB_NAME;
-    // Connection parameters for reliability and recovery
-    private static final String DB_CONNECTION_PARAMS = "?journal_mode=OFF&synchronous=NORMAL&locking_mode=NORMAL";
+    // WAL keeps crash safety while still allowing efficient reads and writes.
+    private static final String DB_CONNECTION_PARAMS = "?journal_mode=WAL&synchronous=NORMAL&locking_mode=NORMAL";
 
     private static DatabaseManager instance;
     private Connection connection;
@@ -52,16 +52,14 @@ public class DatabaseManager {
         int attempts = 0;
         while (attempts < 2) {
             try {
-                // Connect to database with recovery-friendly parameters
-                connection = DriverManager.getConnection(DB_URL_BASE + DB_CONNECTION_PARAMS);
-                connection.setAutoCommit(true);
+                openConnection();
                 System.out.println("[DatabaseManager] Connected to SQLite database at: " + DB_URL_BASE);
 
                 // Create tables
                 createTables();
                 
                 // Force database flush to disk
-                try (Statement stmt = connection.createStatement()) {
+                try (Statement stmt = getConnection().createStatement()) {
                     stmt.execute("PRAGMA integrity_check");
                 }
                 
@@ -144,6 +142,9 @@ public class DatabaseManager {
                         account_number INTEGER DEFAULT 1,
                         encrypted_password TEXT NOT NULL,
                         notes TEXT,
+                        category TEXT DEFAULT '',
+                        tags TEXT DEFAULT '',
+                        is_favorite INTEGER DEFAULT 0,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (owner_username) REFERENCES vault(username) ON DELETE CASCADE,
@@ -167,6 +168,16 @@ public class DatabaseManager {
                     ON credentials(owner_username, updated_at)
                     """;
 
+            String createIndexCategory = """
+                    CREATE INDEX IF NOT EXISTS idx_credentials_category
+                    ON credentials(owner_username, category)
+                    """;
+
+            String createIndexFavorite = """
+                    CREATE INDEX IF NOT EXISTS idx_credentials_favorite
+                    ON credentials(owner_username, is_favorite)
+                    """;
+
             String createIndexLastModified = """
                     CREATE INDEX IF NOT EXISTS idx_credentials_last_modified
                     ON credentials(updated_at)
@@ -180,6 +191,8 @@ public class DatabaseManager {
             stmt.execute(createIndexSiteUrl);
             stmt.execute(createIndexSiteUsername);
             stmt.execute(createIndexUpdated);
+            stmt.execute(createIndexCategory);
+            stmt.execute(createIndexFavorite);
             stmt.execute(createIndexLastModified);
             System.out.println("[DatabaseManager] Database tables and indexes initialized");
         }
@@ -198,12 +211,46 @@ public class DatabaseManager {
             stmt.execute("UPDATE credentials SET account_number = 1 WHERE account_number IS NULL");
             System.out.println("[DatabaseManager] Added account_number column to credentials table");
         }
+        if (!hasColumn("credentials", "category")) {
+            stmt.execute("ALTER TABLE credentials ADD COLUMN category TEXT DEFAULT ''");
+            stmt.execute("UPDATE credentials SET category = '' WHERE category IS NULL");
+            System.out.println("[DatabaseManager] Added category column to credentials table");
+        }
+        if (!hasColumn("credentials", "tags")) {
+            stmt.execute("ALTER TABLE credentials ADD COLUMN tags TEXT DEFAULT ''");
+            stmt.execute("UPDATE credentials SET tags = '' WHERE tags IS NULL");
+            System.out.println("[DatabaseManager] Added tags column to credentials table");
+        }
+        if (!hasColumn("credentials", "is_favorite")) {
+            stmt.execute("ALTER TABLE credentials ADD COLUMN is_favorite INTEGER DEFAULT 0");
+            stmt.execute("UPDATE credentials SET is_favorite = 0 WHERE is_favorite IS NULL");
+            System.out.println("[DatabaseManager] Added is_favorite column to credentials table");
+        }
     }
 
     private boolean hasColumn(String table, String column) throws SQLException {
-        try (ResultSet rs = connection.getMetaData().getColumns(null, null, table, column)) {
+        try (ResultSet rs = getConnection().getMetaData().getColumns(null, null, table, column)) {
             return rs.next();
         }
+    }
+
+    private synchronized void openConnection() throws SQLException {
+        connection = DriverManager.getConnection(DB_URL_BASE + DB_CONNECTION_PARAMS);
+        connection.setAutoCommit(true);
+        try (Statement stmt = getConnection().createStatement()) {
+            stmt.execute("PRAGMA journal_mode=WAL");
+            stmt.execute("PRAGMA synchronous=NORMAL");
+            stmt.execute("PRAGMA foreign_keys=ON");
+            stmt.execute("PRAGMA busy_timeout=5000");
+        }
+    }
+
+    private synchronized Connection ensureConnection() throws SQLException {
+        if (connection == null || connection.isClosed() || !connection.isValid(2)) {
+            System.out.println("[DatabaseManager] Reopening stale SQLite connection");
+            openConnection();
+        }
+        return connection;
     }
 
     /**
@@ -217,7 +264,7 @@ public class DatabaseManager {
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
                 """;
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);
             pstmt.setString(2, hashString);
             pstmt.setString(3, salt.isEmpty() ? hashString : salt);
@@ -239,7 +286,7 @@ public class DatabaseManager {
     public String loadPasswordHash(String username) {
         String sql = "SELECT password_hash FROM vault WHERE username = ?";
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
@@ -265,7 +312,7 @@ public class DatabaseManager {
     public boolean isVaultInitialized(String username) {
         String sql = "SELECT COUNT(*) as count FROM vault WHERE username = ?";
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
@@ -291,7 +338,7 @@ public class DatabaseManager {
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """;
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);
             pstmt.setString(2, mnemonicWordsBase64);
             pstmt.setString(3, mnemonicHashBase64);
@@ -313,7 +360,7 @@ public class DatabaseManager {
     public String loadMnemonicWords(String username) {
         String sql = "SELECT mnemonic_words FROM recovery WHERE username = ?";
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
@@ -335,7 +382,7 @@ public class DatabaseManager {
     public byte[] loadMnemonicHash(String username) {
         String sql = "SELECT mnemonic_hash FROM recovery WHERE username = ?";
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
@@ -361,7 +408,7 @@ public class DatabaseManager {
     public byte[] loadMnemonicSalt(String username) {
         String sql = "SELECT salt FROM recovery WHERE username = ?";
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
@@ -387,7 +434,7 @@ public class DatabaseManager {
     public boolean isRecoverySet(String username) {
         String sql = "SELECT COUNT(*) as count FROM recovery WHERE username = ?";
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
@@ -400,13 +447,12 @@ public class DatabaseManager {
     }
 
     /**
-     * Get the database connection for direct SQL operations.
-     * Used by CredentialSearcher and other utilities.
+     * Get a live database connection for package-local SQL helpers.
      *
      * @return the JDBC connection
      */
-    public java.sql.Connection getConnection() {
-        return connection;
+    synchronized java.sql.Connection getConnection() throws SQLException {
+        return ensureConnection();
     }
 
     /**
@@ -427,7 +473,7 @@ public class DatabaseManager {
      * Clear all vault data (reset vault).
      */
     public void clearVault() {
-        try (Statement stmt = connection.createStatement()) {
+        try (Statement stmt = getConnection().createStatement()) {
             stmt.execute("DELETE FROM vault WHERE id = 1");
             stmt.execute("DELETE FROM recovery WHERE id = 1");
             System.out.println("[DatabaseManager] Vault cleared");
@@ -455,13 +501,20 @@ public class DatabaseManager {
      */
     public long saveCredential(String username, String siteUrl, String siteName, 
                                String siteUsername, int accountNumber, String encryptedPassword, String notes) {
+        return saveCredential(username, siteUrl, siteName, siteUsername, accountNumber, encryptedPassword, notes,
+                "", "", false);
+    }
+
+    public long saveCredential(String username, String siteUrl, String siteName,
+                               String siteUsername, int accountNumber, String encryptedPassword, String notes,
+                               String category, String tags, boolean favorite) {
         String sql = """
                 INSERT INTO credentials (owner_username, site_url, site_name, site_username, 
-                                        account_number, encrypted_password, notes, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                                        account_number, encrypted_password, notes, category, tags, is_favorite, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """;
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             pstmt.setString(1, username);
             pstmt.setString(2, siteUrl);
             pstmt.setString(3, siteName);
@@ -469,6 +522,9 @@ public class DatabaseManager {
             pstmt.setInt(5, accountNumber);
             pstmt.setString(6, encryptedPassword);
             pstmt.setString(7, notes);
+            pstmt.setString(8, category != null ? category : "");
+            pstmt.setString(9, tags != null ? tags : "");
+            pstmt.setInt(10, favorite ? 1 : 0);
             
             int affectedRows = pstmt.executeUpdate();
             if (affectedRows > 0) {
@@ -493,7 +549,7 @@ public class DatabaseManager {
                 WHERE owner_username = ? AND lower(site_url) = lower(?) AND lower(site_username) = lower(?)
                 """;
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);
             pstmt.setString(2, siteUrl);
             pstmt.setString(3, siteUsername);
@@ -513,7 +569,7 @@ public class DatabaseManager {
                 LIMIT 1
                 """;
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, username);
             pstmt.setString(2, siteUrl);
             pstmt.setString(3, siteUsername);
@@ -535,7 +591,10 @@ public class DatabaseManager {
                     credential.siteUsername,
                     credential.accountNumber > 0 ? credential.accountNumber : 1,
                     credential.encryptedPassword,
-                    credential.notes != null ? credential.notes : "") > 0;
+                    credential.notes != null ? credential.notes : "",
+                    credential.category != null ? credential.category : "",
+                    credential.tags != null ? credential.tags : "",
+                    credential.favorite) > 0;
         }
 
         return updateCredential(
@@ -545,7 +604,10 @@ public class DatabaseManager {
                 credential.siteName != null ? credential.siteName : credential.siteUrl,
                 credential.siteUsername,
                 credential.encryptedPassword,
-                credential.notes != null ? credential.notes : "");
+                credential.notes != null ? credential.notes : "",
+                credential.category != null ? credential.category : "",
+                credential.tags != null ? credential.tags : "",
+                credential.favorite);
     }
 
     /**
@@ -562,21 +624,31 @@ public class DatabaseManager {
      */
     public boolean updateCredential(long credentialId, String username, String siteUrl, 
                                    String siteName, String siteUsername, String encryptedPassword, String notes) {
+        return updateCredential(credentialId, username, siteUrl, siteName, siteUsername, encryptedPassword, notes,
+                "", "", false);
+    }
+
+    public boolean updateCredential(long credentialId, String username, String siteUrl,
+                                   String siteName, String siteUsername, String encryptedPassword, String notes,
+                                   String category, String tags, boolean favorite) {
         String sql = """
                 UPDATE credentials 
                 SET site_url = ?, site_name = ?, site_username = ?, 
-                    encrypted_password = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+                    encrypted_password = ?, notes = ?, category = ?, tags = ?, is_favorite = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND owner_username = ?
                 """;
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setString(1, siteUrl);
             pstmt.setString(2, siteName);
             pstmt.setString(3, siteUsername);
             pstmt.setString(4, encryptedPassword);
             pstmt.setString(5, notes);
-            pstmt.setLong(6, credentialId);
-            pstmt.setString(7, username);
+            pstmt.setString(6, category != null ? category : "");
+            pstmt.setString(7, tags != null ? tags : "");
+            pstmt.setInt(8, favorite ? 1 : 0);
+            pstmt.setLong(9, credentialId);
+            pstmt.setString(10, username);
 
             int affectedRows = pstmt.executeUpdate();
             if (affectedRows > 0) {
@@ -599,7 +671,7 @@ public class DatabaseManager {
     public boolean deleteCredential(long credentialId, String username) {
         String sql = "DELETE FROM credentials WHERE id = ? AND owner_username = ?";
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
             pstmt.setLong(1, credentialId);
             pstmt.setString(2, username);
 
@@ -621,8 +693,12 @@ public class DatabaseManager {
      * @return ResultSet containing all credentials for the user
      */
     public ResultSet loadCredentialsForUser(String username) throws SQLException {
-        String sql = "SELECT * FROM credentials WHERE owner_username = ? ORDER BY updated_at DESC";
-        PreparedStatement pstmt = connection.prepareStatement(sql);
+        String sql = """
+                SELECT * FROM credentials
+                WHERE owner_username = ?
+                ORDER BY is_favorite DESC, lower(category) ASC, updated_at DESC
+                """;
+        PreparedStatement pstmt = getConnection().prepareStatement(sql);
         pstmt.setString(1, username);
         return pstmt.executeQuery();
     }
@@ -638,15 +714,17 @@ public class DatabaseManager {
         String sql = """
                 SELECT * FROM credentials
                 WHERE owner_username = ?
-                  AND (site_url LIKE ? OR site_username LIKE ? OR notes LIKE ?)
-                ORDER BY updated_at DESC
+                  AND (site_url LIKE ? OR site_username LIKE ? OR notes LIKE ? OR category LIKE ? OR tags LIKE ?)
+                ORDER BY is_favorite DESC, lower(category) ASC, updated_at DESC
                 """;
-        PreparedStatement pstmt = connection.prepareStatement(sql);
+        PreparedStatement pstmt = getConnection().prepareStatement(sql);
         pstmt.setString(1, username);
         String pattern = "%" + siteUrl + "%";
         pstmt.setString(2, pattern);
         pstmt.setString(3, pattern);
         pstmt.setString(4, pattern);
+        pstmt.setString(5, pattern);
+        pstmt.setString(6, pattern);
         return pstmt.executeQuery();
     }
 
@@ -659,7 +737,7 @@ public class DatabaseManager {
      */
     public ResultSet loadCredentialById(long credentialId, String username) throws SQLException {
         String sql = "SELECT * FROM credentials WHERE id = ? AND owner_username = ?";
-        PreparedStatement pstmt = connection.prepareStatement(sql);
+        PreparedStatement pstmt = getConnection().prepareStatement(sql);
         pstmt.setLong(1, credentialId);
         pstmt.setString(2, username);
         ResultSet rs = pstmt.executeQuery();

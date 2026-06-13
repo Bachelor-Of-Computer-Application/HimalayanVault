@@ -153,6 +153,10 @@ public class JsonUtil {
         sendError(exchange, 404, "Endpoint not found");
     }
 
+    public static void sendTooManyRequests(HttpExchange exchange, String message) throws Exception {
+        sendError(exchange, 429, message);
+    }
+
     /**
      * Send a 500 Internal Server Error response.
      *

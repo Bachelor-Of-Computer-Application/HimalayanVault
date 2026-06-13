@@ -10,6 +10,7 @@ import com.himalayanvault.auth.AuthManager;
 import com.himalayanvault.auth.RecoveryCodeManager;
 import com.himalayanvault.export.VaultExporter;
 import com.himalayanvault.security.ClipboardProtector;
+import com.himalayanvault.security.PasswordStrength;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.ParallelTransition;
@@ -27,7 +28,6 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -77,12 +77,8 @@ public class RecoveryController implements Initializable {
     private String currentUsername; // Store username for use in step 3
     private String exportKeyMnemonicPhrase;  // Store for display
     private boolean onExportKeyStep = false;
-    /* ── Colours ─────────────────────────────────────────────────── */
-    private static final Color C_WEAK   = Color.web("#E24B4A");
-    private static final Color C_FAIR   = Color.web("#EF9F27");
-    private static final Color C_GOOD   = Color.web("#028090");
-    private static final Color C_STRONG = Color.web("#2E6B0A");
-    private static final Color C_EMPTY  = Color.web("#DDE3EE");
+    private LockoutUiHelper lockoutUi;
+    private PasswordStrengthMeter strengthMeter;
 
     /* ── Services ───────────────────────────────────────────────── */
     private final RecoveryCodeManager recovery = new RecoveryCodeManager();
@@ -90,12 +86,33 @@ public class RecoveryController implements Initializable {
 
     @Override
     public void initialize(URL url, ResourceBundle rb) {
+        strengthMeter = new PasswordStrengthMeter(seg1, seg2, seg3, seg4, strengthLbl);
+        lockoutUi = new LockoutUiHelper(() -> usernameField.getText(), err1);
+        lockoutUi.register(
+                usernameField,
+                recoveryWordsArea,
+                newPwdField,
+                confirmPwdField,
+                newPwdVis,
+                confirmPwdVis,
+                nextBtn1,
+                backBtn1,
+                nextBtn2,
+                backBtn2,
+                nextBtn2b,
+                backBtn2b,
+                completeBtn,
+                backBtn3,
+                eye1,
+                eye2);
+        lockoutUi.start();
+
         Platform.runLater(this::playEntranceAnimation);
         // Password visibility toggle
         newPwdField.textProperty().addListener((o, old, v) -> {
             if (!e1Open) {
                 newPwdVis.setText(v);
-                updateBar(v);
+                strengthMeter.update(v);
                 updateRules(v);
                 updateMatch();
             }
@@ -103,7 +120,7 @@ public class RecoveryController implements Initializable {
         newPwdVis.textProperty().addListener((o, old, v) -> {
             if (e1Open) {
                 newPwdField.setText(v);
-                updateBar(v);
+                strengthMeter.update(v);
                 updateRules(v);
                 updateMatch();
             }
@@ -134,18 +151,22 @@ public class RecoveryController implements Initializable {
     private void step1Next() {
         String username = usernameField.getText().trim();
         String wordsInput = recoveryWordsArea.getText().trim();
-        
+
         if (username.isBlank()) {
             err1.setText("Please enter your username.");
             return;
         }
-        
+
+        if (!lockoutUi.ensureNotLocked()) {
+            err1.setText(auth.lockoutMessage(username));
+            return;
+        }
+
         if (wordsInput.isBlank()) {
             err1.setText("Please enter your 16 recovery words separated by spaces.");
             return;
         }
 
-        // Parse and verify recovery words
         String[] wordArray = wordsInput.toLowerCase().split("\\s+");
         if (wordArray.length != 16) {
             err1.setText("Please enter exactly 16 words. You provided: " + wordArray.length);
@@ -154,11 +175,12 @@ public class RecoveryController implements Initializable {
 
         List<String> recoveryWords = Arrays.asList(wordArray);
         if (!recovery.verifyMnemonic(username, recoveryWords)) {
-            err1.setText("Recovery words are incorrect for this username. Please check and try again.");
+            lockoutUi.showFailure(username, "Recovery words are incorrect.");
+            err1.setText(auth.failureMessage(username));
             return;
         }
 
-        // Store username for use in later steps
+        lockoutUi.clearFailure(username);
         currentUsername = username;
         err1.setText("");
         System.out.println("[RecoveryController] Recovery words verified successfully for user: " + username);
@@ -173,6 +195,12 @@ public class RecoveryController implements Initializable {
     /* ════════════════ STEP 2: Set New Password ════════════════ */
     @FXML
     private void step2Next() {
+        if (currentUsername != null && auth.isLockedOut(currentUsername)) {
+            err2.setText(auth.lockoutMessage(currentUsername));
+            lockoutUi.refresh();
+            return;
+        }
+
         String pwd = newPwdField.getText();
         String con = confirmPwdField.getText();
 
@@ -180,7 +208,7 @@ public class RecoveryController implements Initializable {
             err2.setText("Please enter a new master password.");
             return;
         }
-        if (!meetsReqs(pwd)) {
+        if (!PasswordStrength.meetsMasterPasswordRequirements(pwd)) {
             err2.setText("Password does not meet all requirements.");
             return;
         }
@@ -394,9 +422,7 @@ public class RecoveryController implements Initializable {
     }
 
     private boolean meetsReqs(String p) {
-        return p != null && p.length() >= 12
-                && p.matches(".*[A-Z].*") && p.matches(".*[a-z].*")
-                && p.matches(".*[0-9].*") && p.matches(".*[^A-Za-z0-9].*");
+        return PasswordStrength.meetsMasterPasswordRequirements(p);
     }
 
     private void updateMatch() {
@@ -410,41 +436,23 @@ public class RecoveryController implements Initializable {
         }
     }
 
-    private void updateBar(String p) {
-        int sc = 0;
-        if (p != null && p.length() >= 8) sc++;
-        if (p != null && p.length() >= 12) sc++;
-        if (p != null && p.matches(".*[A-Z].*") && p.matches(".*[0-9].*")) sc++;
-        if (p != null && p.matches(".*[^A-Za-z0-9].*")) sc++;
-
-        Color[] cols = {C_WEAK, C_FAIR, C_GOOD, C_STRONG};
-        Rectangle[] segs = {seg1, seg2, seg3, seg4};
-        Color c = sc > 0 ? cols[sc - 1] : C_EMPTY;
-        for (int i = 0; i < 4; i++) {
-            segs[i].setFill(i < sc ? c : C_EMPTY);
-        }
-
-        if (sc > 0) {
-            String[] lbl = {"Weak", "Fair", "Good", "Strong"};
-            strengthLbl.setText("Strength: " + lbl[sc - 1]);
-            strengthLbl.setStyle("-fx-text-fill:" + toHex(c) + ";");
-        } else {
-            strengthLbl.setText("");
-        }
-    }
-
     private void updateRules(String p) {
-        if (p == null) p = "";
-        if (r1 == null) return;
-        applyRule(r1, p.length() >= 12);
-        applyRule(r2, p.matches(".*[A-Z].*") && p.matches(".*[a-z].*"));
-        applyRule(r3, p.matches(".*[0-9].*"));
-        applyRule(r4, p.matches(".*[^A-Za-z0-9].*"));
+        if (p == null) {
+            p = "";
+        }
+        if (r1 == null) {
+            return;
+        }
+        applyRule(r1, p.length() >= 12, "12+ characters");
+        applyRule(r2, p.matches(".*[A-Z].*") && p.matches(".*[a-z].*"), "Upper and lower case");
+        applyRule(r3, p.matches(".*[0-9].*"), "Contains a number");
+        applyRule(r4, p.matches(".*[^A-Za-z0-9].*"), "Contains a special character");
     }
 
-    private void applyRule(Label lbl, boolean met) {
-        if (lbl == null) return;
-        String rule = lbl.getText().replaceAll("^[✓○]\\s+", "");
+    private void applyRule(Label lbl, boolean met, String rule) {
+        if (lbl == null) {
+            return;
+        }
         if (met) {
             lbl.setStyle("-fx-text-fill:#2E6B0A;");
             lbl.setText("✓ " + rule);
@@ -452,10 +460,5 @@ public class RecoveryController implements Initializable {
             lbl.setStyle("-fx-text-fill:#7A8A9B;");
             lbl.setText("○ " + rule);
         }
-    }
-
-    private String toHex(Color c) {
-        return String.format("#%02X%02X%02X",
-                (int) (c.getRed() * 255), (int) (c.getGreen() * 255), (int) (c.getBlue() * 255));
     }
 }

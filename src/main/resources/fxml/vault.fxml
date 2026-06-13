@@ -22,8 +22,8 @@
                 <items>
                     <MenuItem text="Refresh" onAction="#handleRefresh"/>
                     <SeparatorMenuItem/>
-                    <MenuItem text="Export Vault…" onAction="#handleExport"/>
-                    <MenuItem text="Import Vault…" onAction="#handleImport"/>
+                    <MenuItem text="Export Backup or CSV…" onAction="#handleExport"/>
+                    <MenuItem text="Import Backup or CSV…" onAction="#handleImport"/>
                 </items>
             </MenuButton>
         </HBox>
@@ -41,6 +41,7 @@
             <HBox spacing="10" alignment="CENTER_LEFT">
                 <TextField fx:id="searchField" promptText="Search site, username, or URL…"
                            styleClass="search-field" prefWidth="320" HBox.hgrow="ALWAYS"/>
+                <ComboBox fx:id="categoryFilter" styleClass="category-filter" prefWidth="150"/>
                 <Button text="Add" onAction="#handleAdd" styleClass="btn-primary"/>
                 <Button text="Refresh" onAction="#handleRefresh" styleClass="btn-secondary"/>
             </HBox>
@@ -48,11 +49,14 @@
             <StackPane VBox.vgrow="ALWAYS">
                 <TableView fx:id="credentialTable" styleClass="credential-table" prefHeight="340">
                     <columns>
-                        <TableColumn fx:id="siteColumn" text="Site" prefWidth="150"/>
-                        <TableColumn fx:id="usernameColumn" text="Username" prefWidth="170"/>
-                        <TableColumn fx:id="urlColumn" text="URL" prefWidth="200"/>
-                        <TableColumn fx:id="notesColumn" text="Notes" prefWidth="120"/>
-                        <TableColumn fx:id="updatedColumn" text="Updated" prefWidth="110"/>
+                        <TableColumn fx:id="favoriteColumn" text="*" prefWidth="38"/>
+                        <TableColumn fx:id="siteColumn" text="Site" prefWidth="128"/>
+                        <TableColumn fx:id="usernameColumn" text="Username" prefWidth="130"/>
+                        <TableColumn fx:id="categoryColumn" text="Category" prefWidth="92"/>
+                        <TableColumn fx:id="tagsColumn" text="Tags" prefWidth="118"/>
+                        <TableColumn fx:id="urlColumn" text="URL" prefWidth="150"/>
+                        <TableColumn fx:id="notesColumn" text="Notes" prefWidth="105"/>
+                        <TableColumn fx:id="updatedColumn" text="Updated" prefWidth="90"/>
                     </columns>
                     <placeholder>
                         <Label text="No credentials saved yet. Add one or save from the browser extension." wrapText="true" styleClass="table-placeholder"/>

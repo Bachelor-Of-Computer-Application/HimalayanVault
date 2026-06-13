@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import com.himalayanvault.api.util.JsonUtil;
+import com.himalayanvault.auth.AuthLockoutManager;
 import com.himalayanvault.auth.AuthManager;
 import com.himalayanvault.auth.RecoveryCodeManager;
 import com.sun.net.httpserver.HttpExchange;
@@ -64,13 +65,26 @@ public class RecoveryHandler implements HttpHandler {
             return;
         }
 
-        boolean verified = recoveryCodeManager.verifyMnemonic(request.username.trim(), request.words);
-        if (!verified) {
-            JsonUtil.sendUnauthorized(exchange);
+        String username = request.username.trim();
+
+        if (authManager.isLockedOut(username)) {
+            JsonUtil.sendTooManyRequests(exchange, authManager.lockoutMessage(username));
             return;
         }
 
-        VERIFIED_USERS.put(request.username.trim(), System.currentTimeMillis() + VERIFICATION_TTL_MS);
+        boolean verified = recoveryCodeManager.verifyMnemonic(username, request.words);
+        if (!verified) {
+            authManager.recordAuthenticationFailure(username);
+            if (authManager.isLockedOut(username)) {
+                JsonUtil.sendTooManyRequests(exchange, authManager.lockoutMessage(username));
+            } else {
+                JsonUtil.sendUnauthorized(exchange);
+            }
+            return;
+        }
+
+        AuthLockoutManager.getInstance().recordSuccess(username);
+        VERIFIED_USERS.put(username, System.currentTimeMillis() + VERIFICATION_TTL_MS);
         JsonUtil.sendResponse(exchange, 200, new RecoveryResponse(true, "Recovery words verified"));
     }
 

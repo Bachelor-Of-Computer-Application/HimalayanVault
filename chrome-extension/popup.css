@@ -650,6 +650,12 @@ textarea {
     animation: slideUp 0.3s ease;
 }
 
+.copy-feedback-error {
+    background: linear-gradient(135deg, #ff6b6b 0%, #cc3344 100%);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+}
+
 @keyframes slideUp {
     from {
         opacity: 0;

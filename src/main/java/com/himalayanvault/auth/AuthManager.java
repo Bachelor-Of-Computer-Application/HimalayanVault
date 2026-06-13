@@ -5,75 +5,75 @@ import com.himalayanvault.security.Pbkdf2PasswordHasher;
 import com.himalayanvault.security.SessionManager;
 
 /**
- * AuthManager — verifies and stores master passwords.
- * 
- * Security features:
- * - PBKDF2WithHmacSHA256 password hashing with per-user random salts
- * - Session invalidation on password change
- * - Rate limiting on password verification (can be added)
+ * AuthManager — verifies and stores master passwords with brute-force lockout.
  */
 public class AuthManager {
 
+    public enum VerificationResult {
+        SUCCESS,
+        FAILED,
+        LOCKED,
+        USER_NOT_FOUND
+    }
+
+    private final AuthLockoutManager lockout = AuthLockoutManager.getInstance();
+
     /**
-     * Verifies the entered password against the stored Argon2id hash for a specific user.
-     *
-     * @param username         the username
-     * @param enteredPassword  the raw password typed by the user
-     * @return true if the password matches the stored verifier
+     * Verifies the master password and applies rate limiting.
      */
-    public boolean verifyMasterPassword(String username, String enteredPassword) {
+    public VerificationResult verifyMasterPassword(String username, String enteredPassword) {
+        if (username == null || username.isBlank()) {
+            return VerificationResult.FAILED;
+        }
+
+        String normalized = username.trim();
+        if (lockout.isLocked(normalized)) {
+            System.err.println("[AuthManager] Login blocked — user locked out: " + normalized);
+            return VerificationResult.LOCKED;
+        }
+
         try {
-            String storedHash = DatabaseManager.getInstance().loadPasswordHash(username);
-            
-            // User doesn't exist if hash is missing
+            String storedHash = DatabaseManager.getInstance().loadPasswordHash(normalized);
+
             if (storedHash == null) {
-                System.err.println("[AuthManager] User '" + username + "' not found or password not set");
-                return false;
+                lockout.recordFailure(normalized);
+                System.err.println("[AuthManager] User '" + normalized + "' not found or password not set");
+                return VerificationResult.USER_NOT_FOUND;
             }
 
             boolean matches = Pbkdf2PasswordHasher.verifyPassword(storedHash, enteredPassword);
 
             if (matches) {
-                System.out.println("[AuthManager] Password verified for user: " + username);
-            } else {
-                System.err.println("[AuthManager] Password verification FAILED for user: " + username);
+                lockout.recordSuccess(normalized);
+                System.out.println("[AuthManager] Password verified for user: " + normalized);
+                return VerificationResult.SUCCESS;
             }
-            
-            return matches;
+
+            lockout.recordFailure(normalized);
+            System.err.println("[AuthManager] Password verification FAILED for user: " + normalized);
+            return VerificationResult.FAILED;
 
         } catch (Exception e) {
+            lockout.recordFailure(normalized);
             System.err.println("[AuthManager] Verification error: " + e.getMessage());
             e.printStackTrace();
-            return false;
+            return VerificationResult.FAILED;
         }
     }
 
-    /**
-     * Hashes a new master password using PBKDF2 and stores it in the database.
-     * Also invalidates all existing sessions (forces re-authentication).
-     *
-     * @param username         the username
-     * @param masterPassword   the new master password to set
-     * @throws Exception if hash or storage fails
-     */
+    /** @deprecated Prefer {@link #verifyMasterPassword(String, String)} for lockout-aware checks. */
+    public boolean verifyMasterPasswordLegacy(String username, String enteredPassword) {
+        return verifyMasterPassword(username, enteredPassword) == VerificationResult.SUCCESS;
+    }
+
     public void setMasterPassword(String username, String masterPassword) throws Exception {
         String passwordHash = Pbkdf2PasswordHasher.hashPassword(masterPassword);
         DatabaseManager.getInstance().saveMasterPassword(username, passwordHash);
-        
-        // Invalidate all sessions (forces user to re-authenticate)
         SessionManager.getInstance().invalidateAllSessions();
-
+        lockout.recordSuccess(username);
         System.out.println("[AuthManager] Master password set for user: " + username + " (PBKDF2)");
     }
 
-    /**
-     * Resets the master password after verification of recovery code for a specific user.
-     * Used in password recovery flow.
-     *
-     * @param username    the username
-     * @param newPassword the new master password to set
-     * @return true if password was successfully reset
-     */
     public boolean resetPasswordWithRecovery(String username, String newPassword) {
         try {
             setMasterPassword(username, newPassword);
@@ -85,21 +85,34 @@ public class AuthManager {
         }
     }
 
-    /**
-     * Check if a password hash needs rehashing after PBKDF2 parameter updates.
-     * Should be called periodically to upgrade weak hashes.
-     *
-     * @param username the username
-     * @return true if password should be re-hashed with current parameters
-     */
     public boolean passwordNeedsRehashing(String username) {
         try {
             String storedHash = DatabaseManager.getInstance().loadPasswordHash(username);
-            if (storedHash == null) return false;
-            
+            if (storedHash == null) {
+                return false;
+            }
             return Pbkdf2PasswordHasher.needsRehash(storedHash);
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Records a failed recovery-word or export-key attempt for lockout tracking.
+     */
+    public void recordAuthenticationFailure(String username) {
+        lockout.recordFailure(username);
+    }
+
+    public boolean isLockedOut(String username) {
+        return lockout.isLocked(username);
+    }
+
+    public String lockoutMessage(String username) {
+        return lockout.lockoutMessage(username);
+    }
+
+    public String failureMessage(String username) {
+        return lockout.failureMessage(username);
     }
 }

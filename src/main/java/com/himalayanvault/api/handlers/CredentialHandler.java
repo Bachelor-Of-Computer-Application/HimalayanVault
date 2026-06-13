@@ -165,6 +165,8 @@ public class CredentialHandler implements HttpHandler {
             DatabaseManager db = DatabaseManager.getInstance();
             String siteName = request.siteName != null ? request.siteName : request.siteUrl;
             String notes = request.notes != null ? request.notes : "";
+            String category = request.category != null ? request.category.trim() : "";
+            String tags = request.tags != null ? request.tags.trim() : "";
 
             if (db.credentialExists(username, request.siteUrl, request.siteUsername)) {
                 Long existingId = db.findCredentialId(username, request.siteUrl, request.siteUsername);
@@ -180,7 +182,10 @@ public class CredentialHandler implements HttpHandler {
                     siteName,
                     request.siteUsername,
                     storedPassword,
-                    notes);
+                    notes,
+                    category,
+                    tags,
+                    request.favorite);
 
                 if (updated) {
                     CredentialResponse response = new CredentialResponse(true, "Credential updated with ID: " + existingId);
@@ -199,7 +204,10 @@ public class CredentialHandler implements HttpHandler {
                 request.siteUsername,
                 1,
                 storedPassword,
-                notes);
+                notes,
+                category,
+                tags,
+                request.favorite);
 
             if (credId > 0) {
                 CredentialResponse response = new CredentialResponse(true, "Credential saved with ID: " + credId);
@@ -258,7 +266,10 @@ public class CredentialHandler implements HttpHandler {
                 request.siteName != null ? request.siteName : request.siteUrl,
                 request.siteUsername,
                 encryptForStorage(request.encryptedPassword, encryptionKey),
-                request.notes != null ? request.notes : ""
+                request.notes != null ? request.notes : "",
+                request.category != null ? request.category.trim() : "",
+                request.tags != null ? request.tags.trim() : "",
+                request.favorite
             );
 
             if (success) {
@@ -427,9 +438,29 @@ public class CredentialHandler implements HttpHandler {
             accountNumber,
             rs.getString("encrypted_password"),
             rs.getString("notes"),
+            readString(rs, "category"),
+            readString(rs, "tags"),
+            readBoolean(rs, "is_favorite"),
             createdAtMs,
             updatedAtMs
         );
+    }
+
+    private String readString(ResultSet rs, String column) {
+        try {
+            String value = rs.getString(column);
+            return value != null ? value : "";
+        } catch (SQLException ignored) {
+            return "";
+        }
+    }
+
+    private boolean readBoolean(ResultSet rs, String column) {
+        try {
+            return rs.getInt(column) != 0;
+        } catch (SQLException ignored) {
+            return false;
+        }
     }
 
     private String encryptForStorage(String passwordValue, SecretKey encryptionKey) {

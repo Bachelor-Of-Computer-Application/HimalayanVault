@@ -8,4 +8,7 @@ public class CredentialUpdateRequest {
     public String siteUsername;
     public String encryptedPassword;
     public String notes;
+    public String category;
+    public String tags;
+    public boolean favorite;
 }

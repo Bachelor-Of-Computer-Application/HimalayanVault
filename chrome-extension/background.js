@@ -22,7 +22,7 @@ async function restoreSession() {
         resolve(result);
       });
     });
-    
+
     if (result.sessionToken) {
       sessionToken = result.sessionToken;
       currentUsername = result.username;
@@ -53,12 +53,12 @@ restoreSession();
  */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Message received:', request.action, 'from', sender.id);
-  
+
   // Ensure session is restored before processing messages
   restoreSession().then(() => {
     console.log('Current session token status:', !!sessionToken ? 'Active' : 'No session');
   });
-  
+
   try {
     switch (request.action) {
       case 'signup':
@@ -102,46 +102,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           .then(sendResponse)
           .catch(error => sendResponse({ success: false, error: error.message }));
         return true; // Keep channel open for async response
-        
+
       case 'logout':
         handleLogout()
           .then(sendResponse)
           .catch(error => sendResponse({ success: false, error: error.message }));
         return true;
-        
+
       case 'getCredentials':
         handleGetCredentials(request.siteUrl)
           .then(sendResponse)
           .catch(error => sendResponse({ success: false, error: error.message }));
         return true;
-        
+
       case 'saveCredential':
         handleSaveCredential(request.credential)
           .then(sendResponse)
           .catch(error => sendResponse({ success: false, error: error.message }));
         return true;
-        
+
       case 'deleteCredential':
         handleDeleteCredential(request.credentialId)
           .then(sendResponse)
           .catch(error => sendResponse({ success: false, error: error.message }));
         return true;
-        
+
       case 'generatePassword':
         handleGeneratePassword(request.options)
           .then(sendResponse)
           .catch(error => sendResponse({ success: false, error: error.message }));
         return true;
-        
+
       case 'isLoggedIn':
         console.log(' Login status check: ' + (!!sessionToken ? 'logged in' : 'not logged in'));
         sendResponse({ loggedIn: !!sessionToken, username: currentUsername });
         return false;
-        
+
       case 'getSessionToken':
         sendResponse({ token: sessionToken });
         return false;
-        
+
       default:
         console.warn(' Unknown action:', request.action);
         sendResponse({ success: false, error: 'Unknown action: ' + request.action });
@@ -159,48 +159,48 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  */
 async function apiCall(endpoint, method = 'GET', body = null) {
   console.log(` API Call: ${method} ${endpoint}`);
-  
+
   const options = {
     method,
     headers: {
       'Content-Type': 'application/json'
     }
   };
-  
+
   if (sessionToken) {
     options.headers['Authorization'] = `Bearer ${sessionToken}`;
   }
-  
+
   if (body) {
     options.body = JSON.stringify(body);
   }
-  
+
   let timeoutId = null;
-  
+
   try {
     // Check if API server is reachable
     console.log(` Checking if API server is running at ${API_BASE}...`);
-    
+
     const controller = new AbortController();
     timeoutId = setTimeout(() => {
       console.warn(' Request timeout, aborting...');
       controller.abort();
     }, API_TIMEOUT);
-    
+
     const fullUrl = `${API_BASE}${endpoint}`;
     console.log(`Full URL: ${fullUrl}`);
-    
+
     const response = await fetch(fullUrl, {
       ...options,
       signal: controller.signal
     });
-    
+
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
-    
+
     console.log(` Response status: ${response.status}`);
-    
+
     let data;
     try {
       data = await response.json();
@@ -209,32 +209,35 @@ async function apiCall(endpoint, method = 'GET', body = null) {
       console.warn(' Failed to parse response as JSON:', parseError);
       data = { success: false, message: 'Invalid response format' };
     }
-    
+
     if (!response.ok) {
-      console.warn(` API Error (${response.status}):`, data.error || data.message);
-      throw new Error(data.error || data.message || `HTTP ${response.status}`);
+      const message = data.error || data.message || `HTTP ${response.status}`;
+      console.warn(` API Error (${response.status}):`, message);
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
     }
-    
+
     console.log(`API Success: ${endpoint}`);
     return data;
-    
+
   } catch (error) {
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
-    
+
     if (error.name === 'AbortError') {
       console.error(' API Timeout: Request was aborted after', API_TIMEOUT, 'ms');
       console.error(' Is the API server running at ' + API_BASE + '?');
       throw new Error('API request timeout - Is the API server running at ' + API_BASE + '?');
     }
-    
+
     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       console.error(' Network Error: Cannot reach API server at', API_BASE);
       console.error(' Make sure the API server is running: java -jar target/himalayan-vault-1.0.0-fat.jar');
       throw new Error('Cannot connect to API server. Is it running at ' + API_BASE + '?');
     }
-    
+
     console.error(' API Error:', error.message);
     throw error;
   }
@@ -245,42 +248,42 @@ async function apiCall(endpoint, method = 'GET', body = null) {
  */
 async function handleLogin(username, password) {
   console.log(` Attempting login for user: ${username}`);
-  
+
   if (!username || !password) {
     console.warn(' Failed to login: Missing credentials');
     throw new Error('Username and password required');
   }
-  
+
   try {
     console.log('Verifying API server is reachable...');
-    
+
     const response = await apiCall('/login', 'POST', {
       username,
       password
     });
-    
+
     if (!response.success) {
       console.warn('Login failed:', response.message);
       throw new Error(response.message || 'Login failed');
     }
-    
+
     if (!response.token) {
       console.warn('Login response missing token');
       throw new Error('Server did not return a valid token');
     }
-    
+
     sessionToken = response.token;
     currentUsername = username;
-    
+
     // Store token persistently
     await chrome.storage.local.set({
       sessionToken,
       username
     });
-    
+
     console.log(`Login successful for user: ${username}`);
     console.log('Session token stored and ready for API calls');
-    
+
     return {
       success: true,
       message: 'Login successful',
@@ -290,18 +293,22 @@ async function handleLogin(username, password) {
     console.error('Login error:', error.message);
     sessionToken = null;
     currentUsername = null;
-    
-    // Provide helpful error messages
+
     let friendlyMessage = error.message;
-    if (friendlyMessage.includes('API server')) {
+    if (error.status === 429) {
+      // Preserve server lockout message (e.g. "Too many failed attempts...")
+    } else if (friendlyMessage.includes('API server')) {
       friendlyMessage = 'Cannot reach API server. Please make sure it\'s running:\njava -jar target/himalayan-vault-1.0.0-fat.jar';
-    } else if (friendlyMessage.includes('401') || friendlyMessage.includes('Unauthorized')) {
-      friendlyMessage = 'Invalid username or password';
+    } else if (error.status === 401 || friendlyMessage.includes('Unauthorized')) {
+      friendlyMessage = friendlyMessage.includes('attempt')
+        ? friendlyMessage
+        : 'Invalid username or password';
     }
-    
+
     return {
       success: false,
-      error: friendlyMessage
+      error: friendlyMessage,
+      lockedOut: error.status === 429
     };
   }
 }
@@ -313,16 +320,16 @@ async function handleLogout() {
   if (!sessionToken) {
     return { success: true, message: 'Not logged in' };
   }
-  
+
   try {
     await apiCall('/lock', 'POST', { token: sessionToken });
-    
+
     sessionToken = null;
     currentUsername = null;
-    
+
     // Clear stored token
     await chrome.storage.local.remove(['sessionToken', 'username']);
-    
+
     console.log('Logout successful');
     return { success: true, message: 'Logged out' };
   } catch (error) {
@@ -341,19 +348,19 @@ async function handleGetCredentials(siteUrl) {
   if (!sessionToken) {
     throw new Error('Not logged in');
   }
-  
+
   if (!siteUrl) {
     throw new Error('Site URL required');
   }
-  
+
   try {
     const endpoint = `/credentials?site=${encodeURIComponent(siteUrl)}`;
     const response = await apiCall(endpoint);
-    
+
     if (!response.success) {
       throw new Error(response.message || 'Failed to get credentials');
     }
-    
+
     console.log(`Retrieved ${response.credentials.length} credentials for ${siteUrl}`);
     return {
       success: true,
@@ -375,11 +382,11 @@ async function handleSaveCredential(credential) {
   if (!sessionToken) {
     throw new Error('Not logged in');
   }
-  
+
   if (!credential.siteUrl || !credential.siteUsername || !credential.encryptedPassword) {
     throw new Error('Site URL, username, and password required');
   }
-  
+
   try {
     const response = await apiCall('/save', 'POST', {
       token: sessionToken,
@@ -387,13 +394,16 @@ async function handleSaveCredential(credential) {
       siteName: credential.siteName || credential.siteUrl,
       siteUsername: credential.siteUsername,
       encryptedPassword: credential.encryptedPassword,
-      notes: credential.notes || ''
+      notes: credential.notes || '',
+      category: credential.category || '',
+      tags: credential.tags || '',
+      favorite: !!credential.favorite
     });
-    
+
     if (!response.success) {
       throw new Error(response.message || 'Failed to save credential');
     }
-    
+
     console.log('Credential saved successfully');
     return {
       success: true,
@@ -415,21 +425,21 @@ async function handleDeleteCredential(credentialId) {
   if (!sessionToken) {
     throw new Error('Not logged in');
   }
-  
+
   if (!credentialId) {
     throw new Error('Credential ID required');
   }
-  
+
   try {
     const response = await apiCall('/delete', 'POST', {
       token: sessionToken,
       credentialId
     });
-    
+
     if (!response.success) {
       throw new Error(response.message || 'Failed to delete credential');
     }
-    
+
     console.log(`Credential ${credentialId} deleted`);
     return {
       success: true,
@@ -451,7 +461,7 @@ async function handleGeneratePassword(options = {}) {
   if (!sessionToken) {
     throw new Error('Not logged in');
   }
-  
+
   try {
     const response = await apiCall('/generate-password', 'POST', {
       length: options.length || 16,
@@ -460,11 +470,11 @@ async function handleGeneratePassword(options = {}) {
       useNumbers: options.useNumbers !== false,
       useSpecialChars: options.useSpecialChars !== false
     });
-    
+
     if (!response.success) {
       throw new Error(response.message || 'Failed to generate password');
     }
-    
+
     return {
       success: true,
       password: response.password
@@ -616,19 +626,27 @@ async function handleVerifyRecoveryMnemonic(username, words) {
     throw new Error('Username and 16 recovery words are required');
   }
 
-  const response = await apiCall('/recovery/verify', 'POST', {
-    username,
-    words
-  });
+  try {
+    const response = await apiCall('/recovery/verify', 'POST', {
+      username,
+      words
+    });
 
-  if (!response.success) {
-    throw new Error(response.message || 'Recovery words verification failed');
+    if (!response.success) {
+      throw new Error(response.message || 'Recovery words verification failed');
+    }
+
+    return {
+      success: true,
+      message: response.message || 'Recovery words verified'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      lockedOut: error.status === 429
+    };
   }
-
-  return {
-    success: true,
-    message: response.message || 'Recovery words verified'
-  };
 }
 
 async function handleResetPasswordWithRecovery(username, newPassword) {

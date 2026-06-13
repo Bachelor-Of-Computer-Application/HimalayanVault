@@ -2,6 +2,7 @@ package com.himalayanvault.ui;
 
 import java.io.IOException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.sql.ResultSet;
 import java.time.Instant;
@@ -12,23 +13,30 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.TreeSet;   
 
 import javax.crypto.SecretKey;
 
+import com.himalayanvault.auth.AuthManager;
 import com.himalayanvault.db.DatabaseManager;
+import com.himalayanvault.export.CsvCredentialTransfer;
 import com.himalayanvault.export.VaultExporter;
 import com.himalayanvault.export.VaultImporter;
 import com.himalayanvault.models.Credential;
 import com.himalayanvault.security.ClipboardProtector;
 import com.himalayanvault.security.EncryptionUtil;
+import com.himalayanvault.security.PasswordBreachChecker;
+import com.himalayanvault.security.PasswordStrength;
 import com.himalayanvault.security.SessionManager;
 import com.himalayanvault.security.SessionManager.SessionData;
 
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
@@ -38,6 +46,9 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ChoiceDialog;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
@@ -48,8 +59,12 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import javafx.scene.shape.Rectangle;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 /**
  * VaultController — main vault screen with credential management.
@@ -63,15 +78,21 @@ public class VaultController implements Initializable {
     private static final double AUTH_HEIGHT = 640;
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("MMM d, yyyy").withZone(ZoneId.systemDefault());
+    static final String HVLT_IMPORT_DESCRIPTION = "Encrypted Himalayan Vault backup (*.hvlt)";
+    static final String CSV_IMPORT_DESCRIPTION = "Password manager CSV (*.csv)";
 
     @FXML private BorderPane root;
     @FXML private Label vaultStatus;
     @FXML private Label credentialCountLabel;
     @FXML private Label detailLabel;
     @FXML private TextField searchField;
+    @FXML private ComboBox<String> categoryFilter;
     @FXML private TableView<Credential> credentialTable;
+    @FXML private TableColumn<Credential, String> favoriteColumn;
     @FXML private TableColumn<Credential, String> siteColumn;
     @FXML private TableColumn<Credential, String> usernameColumn;
+    @FXML private TableColumn<Credential, String> categoryColumn;
+    @FXML private TableColumn<Credential, String> tagsColumn;
     @FXML private TableColumn<Credential, String> urlColumn;
     @FXML private TableColumn<Credential, String> notesColumn;
     @FXML private TableColumn<Credential, String> updatedColumn;
@@ -83,6 +104,8 @@ public class VaultController implements Initializable {
     private String sessionToken;
     private String currentUsername;
     private final List<Credential> credentials = new ArrayList<>();
+    private final AuthManager authManager = new AuthManager();
+    private final PasswordBreachChecker breachChecker = new PasswordBreachChecker();
     private final ObservableList<Credential> tableItems = FXCollections.observableArrayList();
     private FilteredList<Credential> filteredItems;
 
@@ -127,10 +150,16 @@ public class VaultController implements Initializable {
     }
 
     private void setupTable() {
+        favoriteColumn.setCellValueFactory(data ->
+                new SimpleStringProperty(data.getValue().favorite ? "*" : ""));
         siteColumn.setCellValueFactory(data ->
                 new SimpleStringProperty(displayValue(data.getValue().siteName, data.getValue().siteUrl)));
         usernameColumn.setCellValueFactory(data ->
                 new SimpleStringProperty(displayValue(data.getValue().siteUsername)));
+        categoryColumn.setCellValueFactory(data ->
+                new SimpleStringProperty(displayValue(data.getValue().category)));
+        tagsColumn.setCellValueFactory(data ->
+                new SimpleStringProperty(displayValue(data.getValue().tags)));
         urlColumn.setCellValueFactory(data ->
                 new SimpleStringProperty(displayValue(data.getValue().siteUrl)));
         notesColumn.setCellValueFactory(data ->
@@ -143,17 +172,33 @@ public class VaultController implements Initializable {
     }
 
     private void setupSearch() {
-        searchField.textProperty().addListener((obs, oldValue, query) -> {
-            String needle = query == null ? "" : query.trim().toLowerCase();
-            filteredItems.setPredicate(cred -> {
-                if (needle.isEmpty()) {
-                    return true;
-                }
-                return containsIgnoreCase(cred.siteName, needle)
-                        || containsIgnoreCase(cred.siteUrl, needle)
-                        || containsIgnoreCase(cred.siteUsername, needle)
-                        || containsIgnoreCase(cred.notes, needle);
-            });
+        searchField.textProperty().addListener((obs, oldValue, query) -> applyFilters());
+        categoryFilter.getItems().setAll("All categories", "Favourites");
+        categoryFilter.getSelectionModel().selectFirst();
+        categoryFilter.valueProperty().addListener((obs, oldValue, category) -> applyFilters());
+    }
+
+    private void applyFilters() {
+        String needle = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase();
+        String selectedCategory = categoryFilter.getValue();
+
+        filteredItems.setPredicate(cred -> {
+            boolean categoryMatches = selectedCategory == null
+                    || selectedCategory.equals("All categories")
+                    || (selectedCategory.equals("Favourites") && cred.favorite)
+                    || selectedCategory.equals(displayValue(cred.category));
+            if (!categoryMatches) {
+                return false;
+            }
+            if (needle.isEmpty()) {
+                return true;
+            }
+            return containsIgnoreCase(cred.siteName, needle)
+                    || containsIgnoreCase(cred.siteUrl, needle)
+                    || containsIgnoreCase(cred.siteUsername, needle)
+                    || containsIgnoreCase(cred.notes, needle)
+                    || containsIgnoreCase(cred.category, needle)
+                    || containsIgnoreCase(cred.tags, needle);
         });
     }
 
@@ -171,10 +216,17 @@ public class VaultController implements Initializable {
             }
 
             detailLabel.setText(String.format(
-                    "%s  •  %s  •  %s%s",
+                    "%s%s  •  %s  •  %s%s%s%s",
+                    selected.favorite ? "* " : "",
                     displayValue(selected.siteName, selected.siteUrl),
                     displayValue(selected.siteUsername),
                     displayValue(selected.siteUrl),
+                    selected.category == null || selected.category.isBlank()
+                            ? ""
+                            : "  •  Category: " + selected.category,
+                    selected.tags == null || selected.tags.isBlank()
+                            ? ""
+                            : "  •  Tags: " + selected.tags,
                     selected.notes == null || selected.notes.isBlank()
                             ? ""
                             : "  •  Notes: " + selected.notes));
@@ -212,7 +264,10 @@ public class VaultController implements Initializable {
                     data.siteUsername,
                     1,
                     encrypted,
-                    data.notes);
+                    data.notes,
+                    data.category,
+                    data.tags,
+                    data.favorite);
 
             if (id > 0) {
                 refreshCredentials();
@@ -251,7 +306,10 @@ public class VaultController implements Initializable {
                     data.siteName,
                     data.siteUsername,
                     encrypted,
-                    data.notes);
+                    data.notes,
+                    data.category,
+                    data.tags,
+                    data.favorite);
 
             if (updated) {
                 refreshCredentials();
@@ -323,23 +381,18 @@ public class VaultController implements Initializable {
 
     @FXML
     private void handleExport() {
-        if (!ensureLoggedIn()) {
-            return;
-        }
-
-        TextInputDialog passphraseDialog = new TextInputDialog();
-        passphraseDialog.setTitle("Export Vault");
-        passphraseDialog.setHeaderText("Enter an export passphrase");
-        passphraseDialog.setContentText("Passphrase:");
-
-        Optional<String> passphraseResult = passphraseDialog.showAndWait();
-        if (passphraseResult.isEmpty() || passphraseResult.get().isBlank()) {
+        if (!ensureLoggedIn() || isLockedOut()) {
             return;
         }
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Save Vault Export");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Himalayan Vault Export", "*.hvlt"));
+        FileChooser.ExtensionFilter hvltFilter =
+                new FileChooser.ExtensionFilter("Encrypted Himalayan Vault backup (*.hvlt)", "*.hvlt");
+        FileChooser.ExtensionFilter csvFilter =
+                new FileChooser.ExtensionFilter("Password manager CSV (*.csv)", "*.csv");
+        chooser.getExtensionFilters().addAll(hvltFilter, csvFilter);
+        chooser.setSelectedExtensionFilter(hvltFilter);
         chooser.setInitialFileName("himalayan-vault-export.hvlt");
 
         java.io.File file = chooser.showSaveDialog(root.getScene().getWindow());
@@ -348,17 +401,57 @@ public class VaultController implements Initializable {
         }
 
         try {
-            VaultExporter exporter = new VaultExporter();
-            VaultExporter.ExportResult result = exporter.exportWithPassphrase(
-                    credentials,
-                    passphraseResult.get(),
-                    "vault-export-" + currentUsername);
+            if (isCsvExport(chooser, file)) {
+    ChoiceDialog<CsvCredentialTransfer.CsvFormat> formatDialog = new ChoiceDialog<>(
+            CsvCredentialTransfer.CsvFormat.GENERIC,
+            CsvCredentialTransfer.CsvFormat.values());
+    formatDialog.setTitle("CSV Export Format");
+    formatDialog.setHeaderText("Which password manager are you exporting to?");
+    formatDialog.setContentText("Format:");
+    Optional<CsvCredentialTransfer.CsvFormat> fmt = formatDialog.showAndWait();
+    if (fmt.isEmpty()) return;
 
-            byte[] bytes = Base64.getDecoder().decode(result.encryptedFile);
-            Files.write(file.toPath(), bytes);
+    Alert warn = new Alert(Alert.AlertType.WARNING,
+            "This file will contain all your passwords in plain text.\n" +
+            "Delete it after importing and do not store it in cloud storage.",
+            ButtonType.OK, ButtonType.CANCEL);
+    warn.setTitle("Plaintext Export Warning");
+    if (warn.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
 
-            showAlert(Alert.AlertType.INFORMATION, "Export Complete",
-                    "Exported " + credentials.size() + " credential(s) to:\n" + file.getAbsolutePath());
+    CsvCredentialTransfer csv = new CsvCredentialTransfer();
+    String csvText = csv.exportCsv(
+            credentials,
+            credential -> decryptForDisplay(credential.encryptedPassword),
+            fmt.get());
+    Files.writeString(file.toPath(), csvText, StandardCharsets.UTF_8);
+    showAlert(Alert.AlertType.INFORMATION, "CSV Export Complete",
+            "Exported " + credentials.size() + " credential(s) to " + fmt.get() + " CSV:\n"
+            + file.getAbsolutePath());
+}
+            else {
+                TextInputDialog passphraseDialog = new TextInputDialog();
+                passphraseDialog.setTitle("Export Vault");
+                passphraseDialog.setHeaderText("Enter an export passphrase");
+                passphraseDialog.setContentText("Passphrase:");
+
+                Optional<String> passphraseResult = passphraseDialog.showAndWait();
+                if (passphraseResult.isEmpty() || passphraseResult.get().isBlank()) {
+                    return;
+                }
+
+                VaultExporter exporter = new VaultExporter();
+                VaultExporter.ExportResult result = exporter.exportWithPassphrase(
+                        credentials,
+                        passphraseResult.get(),
+                        "vault-export-" + currentUsername);
+
+                byte[] bytes = Base64.getDecoder().decode(result.encryptedFile);
+                Files.write(file.toPath(), bytes);
+
+                showAlert(Alert.AlertType.INFORMATION, "Export Complete",
+                        "Exported " + credentials.size() + " credential(s) to encrypted backup:\n"
+                                + file.getAbsolutePath());
+            }
         } catch (Exception e) {
             showAlert(Alert.AlertType.ERROR, "Export Failed", e.getMessage());
         }
@@ -366,16 +459,21 @@ public class VaultController implements Initializable {
 
     @FXML
     private void handleImport() {
-        if (!ensureLoggedIn()) {
+        if (!ensureLoggedIn() || isLockedOut()) {
             return;
         }
 
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Import Vault Export");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Himalayan Vault Export", "*.hvlt", "*.*"));
+        chooser.setTitle("Import Vault Data");
+        chooser.getExtensionFilters().addAll(importExtensionFilters());
 
         java.io.File file = chooser.showOpenDialog(root.getScene().getWindow());
         if (file == null) {
+            return;
+        }
+
+        if (file.getName().toLowerCase().endsWith(".csv")) {
+            importCsv(file);
             return;
         }
 
@@ -414,8 +512,74 @@ public class VaultController implements Initializable {
                     "Added " + mergeResult.credentialsAdded + ", updated " + mergeResult.credentialsUpdated
                             + " credential(s).");
         } catch (Exception e) {
-            showAlert(Alert.AlertType.ERROR, "Import Failed", e.getMessage());
+            authManager.recordAuthenticationFailure(currentUsername);
+            if (authManager.isLockedOut(currentUsername)) {
+                showAlert(Alert.AlertType.ERROR, "Import Failed", authManager.lockoutMessage(currentUsername));
+            } else {
+                showAlert(Alert.AlertType.ERROR, "Import Failed",
+                        e.getMessage() + "\n" + authManager.failureMessage(currentUsername));
+            }
         }
+    }
+
+    private boolean isCsvExport(FileChooser chooser, java.io.File file) {
+        FileChooser.ExtensionFilter selected = chooser.getSelectedExtensionFilter();
+        return file.getName().toLowerCase().endsWith(".csv")
+                || (selected != null && selected.getDescription().toLowerCase().contains("csv"));
+    }
+
+    static List<FileChooser.ExtensionFilter> importExtensionFilters() {
+        return List.of(
+                new FileChooser.ExtensionFilter("Supported imports (*.hvlt, *.csv)", "*.hvlt", "*.csv"),
+                new FileChooser.ExtensionFilter(HVLT_IMPORT_DESCRIPTION, "*.hvlt"),
+                new FileChooser.ExtensionFilter(CSV_IMPORT_DESCRIPTION, "*.csv"));
+    }
+
+    private void importCsv(java.io.File file) {
+        try {
+            CsvCredentialTransfer csv = new CsvCredentialTransfer();
+            List<Credential> imported = csv.importCsv(Files.readString(file.toPath(), StandardCharsets.UTF_8));
+            DatabaseManager db = DatabaseManager.getInstance();
+            int added = 0;
+            int updated = 0;
+
+            for (Credential credential : imported) {
+                if (credential.siteUrl.isBlank()) {
+                    credential.siteUrl = credential.siteName;
+                }
+                if (credential.siteName.isBlank()) {
+                    credential.siteName = credential.siteUrl;
+                }
+                if (credential.siteUsername.isBlank() || credential.encryptedPassword.isBlank()) {
+                    continue;
+                }
+
+                boolean existed = db.credentialExists(currentUsername, credential.siteUrl, credential.siteUsername);
+                credential.ownerUsername = currentUsername;
+                credential.encryptedPassword = encryptForStorage(credential.encryptedPassword);
+                if (db.upsertCredentialByUrlAndUsername(currentUsername, credential)) {
+                    if (existed) {
+                        updated++;
+                    } else {
+                        added++;
+                    }
+                }
+            }
+
+            refreshCredentials();
+            showAlert(Alert.AlertType.INFORMATION, "CSV Import Complete",
+                    "Added " + added + ", updated " + updated + " credential(s).");
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR, "CSV Import Failed", e.getMessage());
+        }
+    }
+
+    private boolean isLockedOut() {
+        if (authManager.isLockedOut(currentUsername)) {
+            showAlert(Alert.AlertType.WARNING, "Temporarily Locked", authManager.lockoutMessage(currentUsername));
+            return true;
+        }
+        return false;
     }
 
     @FXML
@@ -459,6 +623,7 @@ public class VaultController implements Initializable {
         }
 
         tableItems.setAll(credentials);
+        refreshCategoryFilter();
         if (credentialCountLabel != null) {
             int count = credentials.size();
             credentialCountLabel.setText(count + " stored credential" + (count == 1 ? "" : "s"));
@@ -492,9 +657,39 @@ public class VaultController implements Initializable {
         TextField usernameField = new TextField();
         usernameField.getStyleClass().add("dialog-field");
 
+        TextField categoryField = new TextField();
+        categoryField.setPromptText("Banking, Email, Social");
+        categoryField.getStyleClass().add("dialog-field");
+
+        TextField tagsField = new TextField();
+        tagsField.setPromptText("work, shared, critical");
+        tagsField.getStyleClass().add("dialog-field");
+
+        CheckBox favoriteBox = new CheckBox("Favourite");
+        favoriteBox.getStyleClass().add("dialog-check");
+
         PasswordField passwordField = new PasswordField();
         passwordField.setPromptText(existing == null ? "Required" : "Leave blank to keep current");
         passwordField.getStyleClass().add("dialog-field");
+
+        Rectangle seg1 = new Rectangle(36, 6);
+        Rectangle seg2 = new Rectangle(36, 6);
+        Rectangle seg3 = new Rectangle(36, 6);
+        Rectangle seg4 = new Rectangle(36, 6);
+        Label strengthLabel = new Label();
+        strengthLabel.getStyleClass().add("helper-text");
+        PasswordStrengthMeter strengthMeter = new PasswordStrengthMeter(seg1, seg2, seg3, seg4, strengthLabel);
+        Label breachLabel = new Label();
+        breachLabel.getStyleClass().add("helper-text");
+        PauseTransition breachDelay = new PauseTransition(Duration.millis(450));
+        final int[] breachRequest = {0};
+        passwordField.textProperty().addListener((obs, old, value) -> {
+            strengthMeter.update(value);
+            scheduleBreachCheck(value, breachLabel, breachDelay, breachRequest);
+        });
+
+        HBox strengthRow = new HBox(4, seg1, seg2, seg3, seg4);
+        strengthRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
 
         TextArea notesArea = new TextArea();
         notesArea.setPrefRowCount(3);
@@ -504,6 +699,9 @@ public class VaultController implements Initializable {
             siteUrlField.setText(existing.siteUrl);
             siteNameField.setText(existing.siteName);
             usernameField.setText(existing.siteUsername);
+            categoryField.setText(existing.category == null ? "" : existing.category);
+            tagsField.setText(existing.tags == null ? "" : existing.tags);
+            favoriteBox.setSelected(existing.favorite);
             notesArea.setText(existing.notes == null ? "" : existing.notes);
         }
 
@@ -516,10 +714,20 @@ public class VaultController implements Initializable {
         grid.add(siteNameField, 1, 1);
         grid.add(makeDialogLabel("Username"), 0, 2);
         grid.add(usernameField, 1, 2);
-        grid.add(makeDialogLabel("Password"), 0, 3);
-        grid.add(passwordField, 1, 3);
-        grid.add(makeDialogLabel("Notes"), 0, 4);
-        grid.add(notesArea, 1, 4);
+        grid.add(makeDialogLabel("Category"), 0, 3);
+        grid.add(categoryField, 1, 3);
+        grid.add(makeDialogLabel("Tags"), 0, 4);
+        grid.add(tagsField, 1, 4);
+        grid.add(makeDialogLabel("Favourite"), 0, 5);
+        grid.add(favoriteBox, 1, 5);
+        grid.add(makeDialogLabel("Password"), 0, 6);
+        grid.add(passwordField, 1, 6);
+        grid.add(makeDialogLabel("Strength"), 0, 7);
+        grid.add(new VBox(6, strengthRow, strengthLabel), 1, 7);
+        grid.add(makeDialogLabel("Breach Status"), 0, 8);
+        grid.add(breachLabel, 1, 8);
+        grid.add(makeDialogLabel("Notes"), 0, 9);
+        grid.add(notesArea, 1, 9);
 
         dialog.getDialogPane().setContent(grid);
         dialog.getDialogPane().getStylesheets().add(
@@ -535,6 +743,8 @@ public class VaultController implements Initializable {
             String siteUrl = siteUrlField.getText().trim();
             String siteName = siteNameField.getText().trim();
             String siteUsername = usernameField.getText().trim();
+            String category = categoryField.getText().trim();
+            String tags = tagsField.getText().trim();
             String password = passwordField.getText();
             String notes = notesArea.getText().trim();
 
@@ -545,11 +755,70 @@ public class VaultController implements Initializable {
             if (siteName.isBlank()) {
                 siteName = siteUrl;
             }
+            if (existing == null && !PasswordStrength.meetsCredentialPasswordRequirements(password)) {
+                showAlert(Alert.AlertType.WARNING, "Credential", "Password must be at least 4 characters.");
+                return null;
+            }
 
-            return new CredentialForm(siteUrl, siteName, siteUsername, password, notes);
+            return new CredentialForm(siteUrl, siteName, siteUsername, password, notes, category, tags,
+                    favoriteBox.isSelected());
         });
 
         return dialog.showAndWait();
+    }
+
+    private void scheduleBreachCheck(String password, Label breachLabel, PauseTransition delay, int[] requestCounter) {
+        int requestId = ++requestCounter[0];
+        delay.stop();
+
+        if (password == null || password.isBlank()) {
+            setBreachStatus(breachLabel, "", PasswordStrength.COLOR_EMPTY);
+            return;
+        }
+
+        setBreachStatus(breachLabel, "Checking...", "#8edfff");
+        delay.setOnFinished(event -> runBreachCheck(password, breachLabel, requestCounter, requestId));
+        delay.playFromStart();
+    }
+
+    private void runBreachCheck(String password, Label breachLabel, int[] requestCounter, int requestId) {
+        Task<PasswordBreachChecker.BreachResult> task = new Task<>() {
+            @Override
+            protected PasswordBreachChecker.BreachResult call() throws Exception {
+                return breachChecker.check(password);
+            }
+        };
+
+        task.setOnSucceeded(event -> {
+            if (requestCounter[0] != requestId) {
+                return;
+            }
+            PasswordBreachChecker.BreachResult result = task.getValue();
+            if (result.status() == PasswordBreachChecker.Status.FOUND) {
+                setBreachStatus(breachLabel,
+                        "Found in " + String.format("%,d", result.count()) + " breaches ⚠",
+                        PasswordStrength.COLOR_WEAK);
+            } else if (result.status() == PasswordBreachChecker.Status.NOT_FOUND) {
+                setBreachStatus(breachLabel, "Not found ✓", PasswordStrength.COLOR_STRONG);
+            } else {
+                setBreachStatus(breachLabel, "", PasswordStrength.COLOR_EMPTY);
+            }
+        });
+
+        task.setOnFailed(event -> {
+            if (requestCounter[0] == requestId) {
+                setBreachStatus(breachLabel, "Unable to check right now", PasswordStrength.COLOR_FAIR);
+            }
+        });
+
+        Thread thread = new Thread(task, "hibp-password-check");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void setBreachStatus(Label breachLabel, String text, String color) {
+        breachLabel.setText(text);
+        breachLabel.setStyle("-fx-text-fill: " + color + ";");
     }
 
     private Label makeDialogLabel(String text) {
@@ -639,10 +908,56 @@ public class VaultController implements Initializable {
                 rs.getString("site_name"),
                 rs.getString("site_username"),
                 accountNumber,
-                rs.getString("encrypted_password"),
-                rs.getString("notes"),
-                createdAtMs,
-                updatedAtMs);
+            rs.getString("encrypted_password"),
+            rs.getString("notes"),
+            readString(rs, "category"),
+            readString(rs, "tags"),
+            readBoolean(rs, "is_favorite"),
+            createdAtMs,
+            updatedAtMs);
+    }
+
+    private void refreshCategoryFilter() {
+        if (categoryFilter == null) {
+            return;
+        }
+
+        String selected = categoryFilter.getValue();
+        TreeSet<String> categories = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (Credential credential : credentials) {
+            if (credential.category != null && !credential.category.isBlank()) {
+                categories.add(credential.category.trim());
+            }
+        }
+
+        List<String> options = new ArrayList<>();
+        options.add("All categories");
+        options.add("Favourites");
+        options.addAll(categories);
+        categoryFilter.getItems().setAll(options);
+        if (selected != null && options.contains(selected)) {
+            categoryFilter.getSelectionModel().select(selected);
+        } else {
+            categoryFilter.getSelectionModel().selectFirst();
+        }
+        applyFilters();
+    }
+
+    private String readString(ResultSet rs, String column) {
+        try {
+            String value = rs.getString(column);
+            return value == null ? "" : value;
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private boolean readBoolean(ResultSet rs, String column) {
+        try {
+            return rs.getInt(column) != 0;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private long readTimestamp(ResultSet rs, String column) {
@@ -706,6 +1021,7 @@ public class VaultController implements Initializable {
         });
     }
 
-    private record CredentialForm(String siteUrl, String siteName, String siteUsername, String password, String notes) {
+    private record CredentialForm(String siteUrl, String siteName, String siteUsername, String password, String notes,
+                                  String category, String tags, boolean favorite) {
     }
 }

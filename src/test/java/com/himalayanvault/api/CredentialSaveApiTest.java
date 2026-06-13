@@ -58,6 +58,9 @@ class CredentialSaveApiTest {
         saveBody.addProperty("siteUsername", "alice@example.com");
         saveBody.addProperty("encryptedPassword", "plain-test-password");
         saveBody.addProperty("notes", "from extension");
+        saveBody.addProperty("category", "Email");
+        saveBody.addProperty("tags", "work, critical");
+        saveBody.addProperty("favorite", true);
 
         HttpResponse<String> save = post("/save", saveBody.toString(), token);
         assertEquals(201, save.statusCode(), save.body());
@@ -71,8 +74,12 @@ class CredentialSaveApiTest {
         JsonObject credsJson = gson.fromJson(credentials.body(), JsonObject.class);
         assertTrue(credsJson.get("success").getAsBoolean());
         assertEquals(1, credsJson.getAsJsonArray("credentials").size());
+        JsonObject credential = credsJson.getAsJsonArray("credentials").get(0).getAsJsonObject();
         assertEquals("plain-test-password",
-                credsJson.getAsJsonArray("credentials").get(0).getAsJsonObject().get("encryptedPassword").getAsString());
+                credential.get("encryptedPassword").getAsString());
+        assertEquals("Email", credential.get("category").getAsString());
+        assertEquals("work, critical", credential.get("tags").getAsString());
+        assertTrue(credential.get("favorite").getAsBoolean());
     }
 
     private HttpResponse<String> post(String path, String body) throws Exception {

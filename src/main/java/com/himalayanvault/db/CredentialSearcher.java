@@ -291,11 +291,31 @@ public class CredentialSearcher {
             cred.accountNumber = rs.getInt("account_number");
             cred.encryptedPassword = rs.getString("encrypted_password");
             cred.notes = rs.getString("notes");
+            cred.category = readString(rs, "category");
+            cred.tags = readString(rs, "tags");
+            cred.favorite = readBoolean(rs, "is_favorite");
             cred.created_at = rs.getLong("created_at");
             cred.updated_at = rs.getLong("updated_at");
             credentials.add(cred);
         }
         return credentials;
+    }
+
+    private String readString(ResultSet rs, String column) {
+        try {
+            String value = rs.getString(column);
+            return value == null ? "" : value;
+        } catch (SQLException ignored) {
+            return "";
+        }
+    }
+
+    private boolean readBoolean(ResultSet rs, String column) {
+        try {
+            return rs.getInt(column) != 0;
+        } catch (SQLException ignored) {
+            return false;
+        }
     }
 
     /**

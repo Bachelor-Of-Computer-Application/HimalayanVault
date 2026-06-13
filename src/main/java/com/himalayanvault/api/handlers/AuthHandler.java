@@ -61,20 +61,34 @@ public class AuthHandler implements HttpHandler {
 
             // Verify master password
             AuthManager authManager = new AuthManager();
-            if (!authManager.verifyMasterPassword(request.username, request.password)) {
-                System.out.println("[AuthHandler] Login failed for user: " + request.username);
-                LoginResponse response = new LoginResponse(false, null, "Invalid username or password");
+            String username = request.username.trim();
+
+            if (authManager.isLockedOut(username)) {
+                JsonUtil.sendTooManyRequests(exchange, authManager.lockoutMessage(username));
+                return;
+            }
+
+            AuthManager.VerificationResult result =
+                    authManager.verifyMasterPassword(username, request.password);
+
+            if (result == AuthManager.VerificationResult.LOCKED) {
+                JsonUtil.sendTooManyRequests(exchange, authManager.lockoutMessage(username));
+                return;
+            }
+
+            if (result != AuthManager.VerificationResult.SUCCESS) {
+                System.out.println("[AuthHandler] Login failed for user: " + username);
+                LoginResponse response = new LoginResponse(false, null, authManager.failureMessage(username));
                 JsonUtil.sendResponse(exchange, 401, response);
                 return;
             }
 
-            // Create session with random salt for key derivation (distinct from password hash)
             String token = SessionManager.getInstance().createSession(
-                    request.username,
+                    username,
                     request.password,
-                    CredentialKeyDerivation.saltForUser(request.username));
+                    CredentialKeyDerivation.saltForUser(username));
 
-            System.out.println("[AuthHandler] Login successful for user: " + request.username);
+            System.out.println("[AuthHandler] Login successful for user: " + username);
             LoginResponse response = new LoginResponse(true, token, "Login successful");
             JsonUtil.sendResponse(exchange, 200, response);
 
