@@ -1,0 +1,4 @@
+folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp
+login,1,login,test12,,,0,https://practicetestautomation.com/practice-test-login/,student,Password123,
+,0,login,Practice,,,0,https://practice.expandtesting.com/login,practice,SuperSecretPassword!,
+,0,login,test2,,,0,https://the-internet.herokuapp.com/login,tomsmith,SUperSecretPassword!,

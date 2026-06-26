@@ -1,15 +1,14 @@
 package com.himalayanvault.export;
 
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -61,7 +60,7 @@ public class VaultExportImportTests {
         bytes[bytes.length - 1] ^= 0x01;
         String corrupted = Base64.getEncoder().encodeToString(bytes);
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(IllegalStateException.class, 
                 () -> importer.getImportPreviewWithMnemonic(corrupted, result.bip39Mnemonic, List.of()));
     }
 
@@ -152,7 +151,7 @@ public class VaultExportImportTests {
         credential.siteName = "Example, Inc";
         credential.notes = "line 1\nline 2";
 
-        String csv = transfer.exportCsv(List.of(credential), c -> "plain,password");
+        String csv = transfer.exportCsv(List.of(credential), c -> "plain,password", null);
 
         assertTrue(csv.startsWith("name,loginUri,loginUsername,loginPassword,notes\n"));
         assertTrue(csv.contains("\"Example, Inc\""));

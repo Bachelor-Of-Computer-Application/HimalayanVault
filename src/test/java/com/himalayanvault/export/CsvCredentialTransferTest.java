@@ -1,9 +1,8 @@
 package com.himalayanvault.export;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +22,7 @@ class CsvCredentialTransferTest {
         original.encryptedPassword = "stored-value";
         original.notes = "line 1\nline \"2\"";
 
-        String exported = transfer.exportCsv(List.of(original), credential -> "plain,password");
+        String exported = transfer.exportCsv(List.of(original), credential -> "plain,password" + credential.siteUsername, null);
         List<Credential> imported = transfer.importCsv(exported);
 
         assertEquals(1, imported.size());
@@ -31,7 +30,7 @@ class CsvCredentialTransferTest {
         assertEquals(original.siteName, roundTripped.siteName);
         assertEquals(original.siteUrl, roundTripped.siteUrl);
         assertEquals(original.siteUsername, roundTripped.siteUsername); 
-        assertEquals("plain,password", roundTripped.encryptedPassword);
+        assertEquals("plain,password" + original.siteUsername, roundTripped.encryptedPassword);
         assertEquals(original.notes, roundTripped.notes);
     }
 }

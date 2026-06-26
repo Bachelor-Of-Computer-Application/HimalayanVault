@@ -8,6 +8,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Base64;
+import java.util.List;
 
 import com.himalayanvault.security.Pbkdf2PasswordHasher;
 
@@ -112,6 +113,7 @@ public class DatabaseManager {
                     CREATE TABLE IF NOT EXISTS vault (
                         username TEXT PRIMARY KEY,
                         password_hash TEXT NOT NULL,
+                        biometric_enabled INTEGER DEFAULT 0,
                         salt TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -202,6 +204,11 @@ public class DatabaseManager {
         if (!hasColumn("vault", "salt")) {
             stmt.execute("ALTER TABLE vault ADD COLUMN salt TEXT");
             System.out.println("[DatabaseManager] Added salt column to vault table");
+        }
+        if (!hasColumn("vault", "biometric_enabled")) {
+            stmt.execute("ALTER TABLE vault ADD COLUMN biometric_enabled INTEGER DEFAULT 0");
+            stmt.execute("UPDATE vault SET biometric_enabled = 0 WHERE biometric_enabled IS NULL");
+            System.out.println("[DatabaseManager] Added biometric_enabled column to vault table");
         }
     }
 
@@ -322,6 +329,41 @@ public class DatabaseManager {
             System.err.println("[DatabaseManager] Failed to check vault initialization for user " + username + ": " + e.getMessage());
         }
         return false;
+    }
+
+    public boolean isBiometricEnabled(String username) {
+        String sql = "SELECT biometric_enabled FROM vault WHERE username = ?";
+
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next() && rs.getInt("biometric_enabled") == 1;
+        } catch (SQLException e) {
+            System.err.println("[DatabaseManager] Failed to load biometric setting for user " + username + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean setBiometricEnabled(String username, boolean enabled) {
+        String sql = """
+                UPDATE vault
+                SET biometric_enabled = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE username = ?
+                """;
+
+        try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
+            pstmt.setInt(1, enabled ? 1 : 0);
+            pstmt.setString(2, username);
+            boolean updated = pstmt.executeUpdate() == 1;
+            if (updated) {
+                System.out.println("[DatabaseManager] Biometric unlock "
+                        + (enabled ? "enabled" : "disabled") + " for user: " + username);
+            }
+            return updated;
+        } catch (SQLException e) {
+            System.err.println("[DatabaseManager] Failed to update biometric setting for user " + username + ": " + e.getMessage());
+            return false;
+        }
     }
 
     /**
@@ -659,6 +701,54 @@ public class DatabaseManager {
             System.err.println("[DatabaseManager] Failed to update credential: " + e.getMessage());
         }
         return false;
+    }
+
+    public void rotateMasterPasswordAndCredentials(String username, String newPasswordHash,
+                                                   List<com.himalayanvault.models.Credential> reencryptedCredentials)
+            throws SQLException {
+        Connection conn = getConnection();
+        boolean previousAutoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        try {
+            String updateCredentialSql = """
+                    UPDATE credentials
+                    SET encrypted_password = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND owner_username = ?
+                    """;
+            try (PreparedStatement pstmt = conn.prepareStatement(updateCredentialSql)) {
+                for (com.himalayanvault.models.Credential credential : reencryptedCredentials) {
+                    pstmt.setString(1, credential.encryptedPassword);
+                    pstmt.setLong(2, credential.id);
+                    pstmt.setString(3, username);
+                    pstmt.addBatch();
+                }
+                pstmt.executeBatch();
+            }
+
+            String salt = Pbkdf2PasswordHasher.extractEmbeddedSalt(newPasswordHash);
+            String updateVaultSql = """
+                    UPDATE vault
+                    SET password_hash = ?, salt = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE username = ?
+                    """;
+            try (PreparedStatement pstmt = conn.prepareStatement(updateVaultSql)) {
+                pstmt.setString(1, newPasswordHash);
+                pstmt.setString(2, salt.isEmpty() ? newPasswordHash : salt);
+                pstmt.setString(3, username);
+                if (pstmt.executeUpdate() != 1) {
+                    throw new SQLException("No vault account found for " + username);
+                }
+            }
+
+            conn.commit();
+            System.out.println("[DatabaseManager] Rotated master password and re-encrypted "
+                    + reencryptedCredentials.size() + " credential(s) for user: " + username);
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(previousAutoCommit);
+        }
     }
 
     /**

@@ -1,11 +1,13 @@
 package com.himalayanvault.ui;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.sql.ResultSet;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -18,15 +20,18 @@ import java.util.TreeSet;
 import javax.crypto.SecretKey;
 
 import com.himalayanvault.auth.AuthManager;
+import com.himalayanvault.auth.BiometricHandler;
 import com.himalayanvault.db.DatabaseManager;
 import com.himalayanvault.export.CsvCredentialTransfer;
 import com.himalayanvault.export.VaultExporter;
 import com.himalayanvault.export.VaultImporter;
 import com.himalayanvault.models.Credential;
 import com.himalayanvault.security.ClipboardProtector;
+import com.himalayanvault.security.CredentialKeyDerivation;
 import com.himalayanvault.security.EncryptionUtil;
 import com.himalayanvault.security.PasswordBreachChecker;
 import com.himalayanvault.security.PasswordStrength;
+import com.himalayanvault.security.Pbkdf2PasswordHasher;
 import com.himalayanvault.security.SessionManager;
 import com.himalayanvault.security.SessionManager.SessionData;
 
@@ -52,11 +57,14 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -78,6 +86,8 @@ public class VaultController implements Initializable {
     private static final double AUTH_HEIGHT = 640;
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("MMM d, yyyy").withZone(ZoneId.systemDefault());
+    private static final long MIN_VALID_TIMESTAMP_MS =
+            LocalDate.of(2000, 1, 1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
     static final String HVLT_IMPORT_DESCRIPTION = "Encrypted Himalayan Vault backup (*.hvlt)";
     static final String CSV_IMPORT_DESCRIPTION = "Password manager CSV (*.csv)";
 
@@ -105,6 +115,7 @@ public class VaultController implements Initializable {
     private String currentUsername;
     private final List<Credential> credentials = new ArrayList<>();
     private final AuthManager authManager = new AuthManager();
+    private final BiometricHandler biometricHandler = new BiometricHandler();
     private final PasswordBreachChecker breachChecker = new PasswordBreachChecker();
     private final ObservableList<Credential> tableItems = FXCollections.observableArrayList();
     private FilteredList<Credential> filteredItems;
@@ -151,9 +162,40 @@ public class VaultController implements Initializable {
 
     private void setupTable() {
         favoriteColumn.setCellValueFactory(data ->
-                new SimpleStringProperty(data.getValue().favorite ? "*" : ""));
+                new SimpleStringProperty(data.getValue().favorite ? "★" : ""));
         siteColumn.setCellValueFactory(data ->
                 new SimpleStringProperty(displayValue(data.getValue().siteName, data.getValue().siteUrl)));
+        siteColumn.setCellFactory(column -> new TableCell<>() {
+            private final ImageView favicon = new ImageView();
+            private final Label label = new Label();
+            private final HBox box = new HBox(8, favicon, label);
+
+            {
+                favicon.setFitWidth(16);
+                favicon.setFitHeight(16);
+                favicon.setPreserveRatio(true);
+                box.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            }
+
+            @Override
+            protected void updateItem(String site, boolean empty) {
+                super.updateItem(site, empty);
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setGraphic(null);
+                    setText(null);
+                    return;
+                }
+
+                Credential credential = getTableRow().getItem();
+                String faviconUrl = faviconUrlFor(credential.siteUrl);
+                label.setText(site);
+                favicon.setImage(faviconUrl == null ? null : new Image(faviconUrl, true));
+                favicon.setVisible(faviconUrl != null);
+                favicon.setManaged(faviconUrl != null);
+                setGraphic(box);
+                setText(null);
+            }
+        });
         usernameColumn.setCellValueFactory(data ->
                 new SimpleStringProperty(displayValue(data.getValue().siteUsername)));
         categoryColumn.setCellValueFactory(data ->
@@ -173,7 +215,7 @@ public class VaultController implements Initializable {
 
     private void setupSearch() {
         searchField.textProperty().addListener((obs, oldValue, query) -> applyFilters());
-        categoryFilter.getItems().setAll("All categories", "Favourites");
+        categoryFilter.getItems().setAll("All categories", "Favourites", "Recent");
         categoryFilter.getSelectionModel().selectFirst();
         categoryFilter.valueProperty().addListener((obs, oldValue, category) -> applyFilters());
     }
@@ -186,6 +228,7 @@ public class VaultController implements Initializable {
             boolean categoryMatches = selectedCategory == null
                     || selectedCategory.equals("All categories")
                     || (selectedCategory.equals("Favourites") && cred.favorite)
+                    || (selectedCategory.equals("Recent") && isRecent(cred))
                     || selectedCategory.equals(displayValue(cred.category));
             if (!categoryMatches) {
                 return false;
@@ -217,7 +260,7 @@ public class VaultController implements Initializable {
 
             detailLabel.setText(String.format(
                     "%s%s  •  %s  •  %s%s%s%s",
-                    selected.favorite ? "* " : "",
+                    selected.favorite ? "★ " : "",
                     displayValue(selected.siteName, selected.siteUrl),
                     displayValue(selected.siteUsername),
                     displayValue(selected.siteUrl),
@@ -231,11 +274,185 @@ public class VaultController implements Initializable {
                             ? ""
                             : "  •  Notes: " + selected.notes));
         });
+        credentialTable.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2
+                    && credentialTable.getSelectionModel().getSelectedItem() != null) {
+                handleEdit();
+            }
+        });
     }
 
     @FXML
     private void handleRefresh() {
         refreshCredentials();
+    }
+
+    @FXML
+    private void handleSecurityDashboard() {
+        if (!ensureLoggedIn()) {
+            return;
+        }
+        long favorites = credentials.stream().filter(credential -> credential.favorite).count();
+        long recent = credentials.stream().filter(this::isRecent).count();
+        showAlert(Alert.AlertType.INFORMATION, "Security Dashboard",
+                "Stored credentials: " + credentials.size()
+                        + "\nFavorites: " + favorites
+                        + "\nRecently updated: " + recent
+                        + "\nUse the category filter to view these groups.");
+    }
+
+    @FXML
+    private void handleChangeMasterPassword() {
+        if (!ensureLoggedIn() || isLockedOut()) {
+            return;
+        }
+
+        Optional<PasswordChangeForm> form = showPasswordChangeDialog();
+        if (form.isEmpty()) {
+            return;
+        }
+
+        PasswordChangeForm data = form.get();
+        if (!data.newPassword.equals(data.confirmPassword)) {
+            showAlert(Alert.AlertType.WARNING, "Change Master Password", "New passwords do not match.");
+            return;
+        }
+        if (!PasswordStrength.meetsMasterPasswordRequirements(data.newPassword)) {
+            showAlert(Alert.AlertType.WARNING, "Change Master Password",
+                    "New master password must be at least 12 characters and include uppercase, lowercase, number, and symbol.");
+            return;
+        }
+
+        AuthManager.VerificationResult result =
+                authManager.verifyMasterPassword(currentUsername, data.currentPassword);
+        if (result != AuthManager.VerificationResult.SUCCESS) {
+            showAlert(Alert.AlertType.ERROR, "Change Master Password", "Current master password is incorrect.");
+            return;
+        }
+
+        try {
+            SecretKey oldKey = CredentialKeyDerivation.keyForUser(currentUsername, data.currentPassword);
+            SecretKey newKey = CredentialKeyDerivation.keyForUser(currentUsername, data.newPassword);
+            List<Credential> reencrypted = new ArrayList<>();
+            for (Credential credential : credentials) {
+                Credential copy = copyCredential(credential);
+                if (looksEncrypted(credential.encryptedPassword)) {
+                    String plaintext = EncryptionUtil.decrypt(credential.encryptedPassword, oldKey);
+                    copy.encryptedPassword = EncryptionUtil.encrypt(plaintext, newKey);
+                }
+                reencrypted.add(copy);
+            }
+
+            String newHash = Pbkdf2PasswordHasher.hashPassword(data.newPassword);
+            DatabaseManager.getInstance().rotateMasterPasswordAndCredentials(
+                    currentUsername, newHash, reencrypted);
+
+            SessionManager.getInstance().invalidateAllSessions();
+            sessionToken = SessionManager.getInstance().createSession(
+                    currentUsername, data.newPassword, CredentialKeyDerivation.saltForUser(currentUsername));
+            refreshCredentials();
+            showAlert(Alert.AlertType.INFORMATION, "Change Master Password",
+                    "Master password changed and vault data re-encrypted successfully.");
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR, "Change Master Password", e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleRecoveryCodes() {
+        showAlert(Alert.AlertType.INFORMATION, "Recovery Codes",
+                "Recovery words remain valid after changing your master password.");
+    }
+
+    @FXML
+    private void handleBiometricSettings() {
+        if (!ensureLoggedIn() || isLockedOut()) {
+            return;
+        }
+
+        boolean enabled = DatabaseManager.getInstance().isBiometricEnabled(currentUsername);
+        Dialog<BiometricSettingForm> dialog = new Dialog<>();
+        dialog.setTitle("Biometric Settings");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+
+        Label statusLabel = new Label(enabled ? "Biometric unlock is enabled." : "Biometric unlock is disabled.");
+        statusLabel.getStyleClass().add("dialog-status");
+
+        CheckBox enableBox = new CheckBox("Enable biometric unlock after master-password login");
+        enableBox.setSelected(enabled);
+        enableBox.getStyleClass().add("dialog-check");
+
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Confirm current master password");
+        passwordField.getStyleClass().add("dialog-field");
+
+        Label supportLabel = new Label(biometricHandler.isAvailable()
+                ? "This device reports biometric support."
+                : "This build does not expose an OS biometric provider yet.");
+        supportLabel.getStyleClass().add("helper-text");
+        supportLabel.setWrapText(true);
+
+        VBox content = new VBox(10,
+                statusLabel,
+                enableBox,
+                makeDialogLabel("Master Password"),
+                passwordField,
+                supportLabel);
+        content.setPadding(new Insets(12, 16, 8, 16));
+        content.setPrefWidth(360);
+
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getStylesheets().add(
+                getClass().getResource("/css/vault.css").toExternalForm());
+
+        Platform.runLater(passwordField::requestFocus);
+        dialog.setResultConverter(button -> {
+            if (button != ButtonType.OK) {
+                return null;
+            }
+            return new BiometricSettingForm(enableBox.isSelected(), passwordField.getText());
+        });
+
+        Optional<BiometricSettingForm> form = dialog.showAndWait();
+        if (form.isEmpty()) {
+            return;
+        }
+
+        BiometricSettingForm data = form.get();
+        if (data.masterPassword() == null || data.masterPassword().isBlank()) {
+            showAlert(Alert.AlertType.WARNING, "Biometric Settings", "Enter your current master password to change biometric settings.");
+            return;
+        }
+
+        AuthManager.VerificationResult result =
+                authManager.verifyMasterPassword(currentUsername, data.masterPassword());
+        if (result != AuthManager.VerificationResult.SUCCESS) {
+            showAlert(Alert.AlertType.ERROR, "Biometric Settings", "Current master password is incorrect.");
+            return;
+        }
+
+        boolean updated = DatabaseManager.getInstance().setBiometricEnabled(currentUsername, data.enabled());
+        if (!updated) {
+            showAlert(Alert.AlertType.ERROR, "Biometric Settings", "Could not update biometric settings.");
+            return;
+        }
+
+        showAlert(Alert.AlertType.INFORMATION, "Biometric Settings",
+                data.enabled()
+                        ? "Biometric unlock enabled. Log in with your master password first; biometric unlock can be used only when this build has an OS biometric provider."
+                        : "Biometric unlock disabled.");
+    }
+
+    @FXML
+    private void handleSettings() {
+        showAlert(Alert.AlertType.INFORMATION, "Settings",
+                "Auto-lock, import, export, search, favorites, and recent filters use the current vault defaults.");
+    }
+
+    @FXML
+    private void handleAbout() {
+        showAlert(Alert.AlertType.INFORMATION, "About",
+                "Himalayan Vault\nLocal encrypted password vault.");
     }
 
     @FXML
@@ -933,6 +1150,7 @@ public class VaultController implements Initializable {
         List<String> options = new ArrayList<>();
         options.add("All categories");
         options.add("Favourites");
+        options.add("Recent");
         options.addAll(categories);
         categoryFilter.getItems().setAll(options);
         if (selected != null && options.contains(selected)) {
@@ -963,7 +1181,7 @@ public class VaultController implements Initializable {
     private long readTimestamp(ResultSet rs, String column) {
         try {
             long value = rs.getLong(column);
-            if (!rs.wasNull() && value > 0) {
+            if (!rs.wasNull() && value >= MIN_VALID_TIMESTAMP_MS) {
                 return value;
             }
         } catch (Exception ignored) {
@@ -983,10 +1201,100 @@ public class VaultController implements Initializable {
     }
 
     private String formatUpdatedAt(long updatedAtMs) {
-        if (updatedAtMs <= 0) {
+        if (updatedAtMs < MIN_VALID_TIMESTAMP_MS) {
             return "—";
         }
         return DATE_FMT.format(Instant.ofEpochMilli(updatedAtMs));
+    }
+
+    private boolean isRecent(Credential credential) {
+        if (credential == null || credential.updated_at < MIN_VALID_TIMESTAMP_MS) {
+            return false;
+        }
+        long thirtyDaysMs = 30L * 24 * 60 * 60 * 1000;
+        return System.currentTimeMillis() - credential.updated_at <= thirtyDaysMs;
+    }
+
+    private String faviconUrlFor(String siteUrl) {
+        String host = hostFor(siteUrl);
+        if (host.isBlank()) {
+            return null;
+        }
+        return "https://www.google.com/s2/favicons?sz=32&domain=" + host;
+    }
+
+    private String hostFor(String siteUrl) {
+        if (siteUrl == null || siteUrl.isBlank()) {
+            return "";
+        }
+        String value = siteUrl.trim();
+        try {
+            URI uri = URI.create(value.contains("://") ? value : "https://" + value);
+            String host = uri.getHost();
+            if (host == null) {
+                return "";
+            }
+            return host.startsWith("www.") ? host.substring(4) : host;
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
+    }
+
+    private Optional<PasswordChangeForm> showPasswordChangeDialog() {
+        Dialog<PasswordChangeForm> dialog = new Dialog<>();
+        dialog.setTitle("Change Master Password");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+
+        PasswordField currentField = new PasswordField();
+        PasswordField newField = new PasswordField();
+        PasswordField confirmField = new PasswordField();
+        currentField.getStyleClass().add("dialog-field");
+        newField.getStyleClass().add("dialog-field");
+        confirmField.getStyleClass().add("dialog-field");
+
+        GridPane grid = new GridPane();
+        grid.getStyleClass().add("dialog-grid");
+        grid.setPadding(new Insets(12, 16, 8, 16));
+        grid.add(makeDialogLabel("Current Master Password"), 0, 0);
+        grid.add(currentField, 1, 0);
+        grid.add(makeDialogLabel("New Master Password"), 0, 1);
+        grid.add(newField, 1, 1);
+        grid.add(makeDialogLabel("Confirm New Master Password"), 0, 2);
+        grid.add(confirmField, 1, 2);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.getDialogPane().getStylesheets().add(
+                getClass().getResource("/css/vault.css").toExternalForm());
+        Platform.runLater(currentField::requestFocus);
+
+        dialog.setResultConverter(button -> {
+            if (button != ButtonType.OK) {
+                return null;
+            }
+            return new PasswordChangeForm(
+                    currentField.getText(),
+                    newField.getText(),
+                    confirmField.getText());
+        });
+
+        return dialog.showAndWait();
+    }
+
+    private Credential copyCredential(Credential credential) {
+        return new Credential(
+                credential.id,
+                credential.ownerUsername,
+                credential.siteUrl,
+                credential.siteName,
+                credential.siteUsername,
+                credential.accountNumber,
+                credential.encryptedPassword,
+                credential.notes,
+                credential.category,
+                credential.tags,
+                credential.favorite,
+                credential.created_at,
+                credential.updated_at);
     }
 
     private String displayValue(String... values) {
@@ -1023,5 +1331,11 @@ public class VaultController implements Initializable {
 
     private record CredentialForm(String siteUrl, String siteName, String siteUsername, String password, String notes,
                                   String category, String tags, boolean favorite) {
+    }
+
+    private record BiometricSettingForm(boolean enabled, String masterPassword) {
+    }
+
+    private record PasswordChangeForm(String currentPassword, String newPassword, String confirmPassword) {
     }
 }

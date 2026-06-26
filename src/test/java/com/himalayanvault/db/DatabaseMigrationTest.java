@@ -32,6 +32,7 @@ class DatabaseMigrationTest {
         Set<String> columns = columns(db, "vault");
 
         assertTrue(columns.contains("salt"));
+        assertTrue(columns.contains("biometric_enabled"));
     }
 
     private static Set<String> columns(DatabaseManager db, String table) throws SQLException {

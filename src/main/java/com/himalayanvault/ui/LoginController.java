@@ -7,6 +7,7 @@ import java.util.ResourceBundle;
 import com.himalayanvault.auth.AuthManager;
 import com.himalayanvault.auth.BiometricHandler;
 import com.himalayanvault.auth.AuthManager.VerificationResult;
+import com.himalayanvault.db.DatabaseManager;
 import com.himalayanvault.security.CredentialKeyDerivation;
 import com.himalayanvault.security.SessionManager;
 
@@ -245,6 +246,17 @@ public class LoginController implements Initializable {
             return;
         }
 
+        String normalizedUsername = username.trim();
+        if (!DatabaseManager.getInstance().isBiometricEnabled(normalizedUsername)) {
+            showWarning("Log in with your master password first, then enable biometrics in the vault menu.", false);
+            return;
+        }
+
+        if (!biometricHandler.isAvailable()) {
+            showWarning("Biometric unlock is enabled, but this build does not expose an OS biometric provider yet. Use your master password.", false);
+            return;
+        }
+
         showInfo("Biometric prompt opened — waiting for Windows Hello / Touch ID…");
         unlockButton.setDisable(true);
 
@@ -254,7 +266,8 @@ public class LoginController implements Initializable {
             Platform.runLater(() -> {
                 unlockButton.setDisable(false);
                 if (success) {
-                    navigateToVault(username);
+                    showWarning("Biometric verified. Enter your master password once to unlock the encrypted vault.", true);
+                    passwordField.requestFocus();
                 } else {
                     showWarning("Biometric authentication failed. Try master password.", false);
                 }
