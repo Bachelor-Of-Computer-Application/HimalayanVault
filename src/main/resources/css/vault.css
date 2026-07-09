@@ -292,15 +292,15 @@
     -fx-border-color: transparent transparent -hv-accent transparent;
 }
 
-.credential-table .table-row-cell:selected .table-cell {
-    -fx-text-fill: -hv-text-primary;
-}
-
 .credential-table .table-cell {
-    -fx-text-fill: -hv-text-secondary;
+    -fx-text-fill: #FFFFFF;
     -fx-font-size: 12.5px;
     -fx-padding: 10 10 10 10;
     -fx-border-color: transparent;
+}
+
+.credential-table .table-cell .label {
+    -fx-text-fill: #FFFFFF;
 }
 
 .credential-table .column-header .arrow {

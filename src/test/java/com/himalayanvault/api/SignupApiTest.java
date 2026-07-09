@@ -1,9 +1,5 @@
 package com.himalayanvault.api;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -11,6 +7,9 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,8 +63,14 @@ class SignupApiTest {
         HttpResponse<String> first = post("/signup", body);
         assertEquals(201, first.statusCode());
 
-        HttpResponse<String> second = post("/signup", body);
+        String originalHash = DatabaseManager.getInstance().loadPasswordHash(username);
+        assertNotNull(originalHash);
+
+        String duplicateBody = gson.toJson(new SignupPayload(username, "DifferentPass2@"));
+        HttpResponse<String> second = post("/signup", duplicateBody);
         assertEquals(409, second.statusCode());
+
+        assertEquals(originalHash, DatabaseManager.getInstance().loadPasswordHash(username));
     }
 
     private HttpResponse<String> post(String path, String body) throws Exception {

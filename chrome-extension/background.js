@@ -349,19 +349,17 @@ async function handleGetCredentials(siteUrl) {
     throw new Error('Not logged in');
   }
 
-  if (!siteUrl) {
-    throw new Error('Site URL required');
-  }
-
   try {
-    const endpoint = `/credentials?site=${encodeURIComponent(siteUrl)}`;
+    const endpoint = siteUrl
+      ? `/credentials?site=${encodeURIComponent(siteUrl)}`
+      : '/credentials';
     const response = await apiCall(endpoint);
 
     if (!response.success) {
       throw new Error(response.message || 'Failed to get credentials');
     }
 
-    console.log(`Retrieved ${response.credentials.length} credentials for ${siteUrl}`);
+    console.log(`Retrieved ${response.credentials.length} credentials${siteUrl ? ` for ${siteUrl}` : ''}`);
     return {
       success: true,
       credentials: response.credentials || []
@@ -383,15 +381,17 @@ async function handleSaveCredential(credential) {
     throw new Error('Not logged in');
   }
 
-  if (!credential.siteUrl || !credential.siteUsername || !credential.encryptedPassword) {
+  const siteUrl = credential.siteUrl || credential.siteName || '';
+
+  if (!siteUrl || !credential.siteUsername || !credential.encryptedPassword) {
     throw new Error('Site URL, username, and password required');
   }
 
   try {
     const response = await apiCall('/save', 'POST', {
       token: sessionToken,
-      siteUrl: credential.siteUrl,
-      siteName: credential.siteName || credential.siteUrl,
+      siteUrl,
+      siteName: credential.siteName || siteUrl,
       siteUsername: credential.siteUsername,
       encryptedPassword: credential.encryptedPassword,
       notes: credential.notes || '',

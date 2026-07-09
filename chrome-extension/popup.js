@@ -46,6 +46,50 @@ async function checkApiServer() {
   }
 }
 
+function normalizeSiteUrl(siteUrl) {
+  const value = String(siteUrl || '').trim();
+  if (!value) {
+    return '';
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch (error) {
+    try {
+      return new URL(`https://${value}`).origin;
+    } catch (innerError) {
+      return value.replace(/\/+$/, '');
+    }
+  }
+}
+
+async function getActiveTabSiteUrl() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs && tabs[0];
+    if (!tab || !tab.url) {
+      return '';
+    }
+
+    return normalizeSiteUrl(tab.url);
+  } catch (error) {
+    console.warn('Unable to resolve active tab URL:', error.message);
+    return '';
+  }
+}
+
+async function prefillSiteUrl() {
+  const siteUrlInput = document.getElementById('siteUrl');
+  if (!siteUrlInput || siteUrlInput.value) {
+    return;
+  }
+
+  const activeSiteUrl = await getActiveTabSiteUrl();
+  if (activeSiteUrl) {
+    siteUrlInput.value = activeSiteUrl;
+  }
+}
+
 // Initialize on load
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Popup initialized');
@@ -75,6 +119,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else {
     showLoginPanel();
   }
+
+  prefillSiteUrl();
 });
 
 // Logout
@@ -146,7 +192,6 @@ if (loginForm) {
         if (loginForm.reset) loginForm.reset();
         showMainPanel(username);
         loadCredentials();
-        showQuickSaveOption();
       } else {
         if (errorDiv) {
           errorDiv.textContent = response && (response.error || response.message) ? (response.error || response.message) : 'Login failed';
@@ -162,80 +207,6 @@ if (loginForm) {
       capturedLoginCredentials = null;
     }
   });
-}
-
-// Show quick save prompt after login
-function showQuickSaveOption() {
-  const mainPanel = document.getElementById('mainPanel');
-  const existingQuickSave = document.querySelector('.quick-save-prompt');
-  if (existingQuickSave) existingQuickSave.remove();
-
-  const tabs = chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]) {
-      const hostname = new URL(tabs[0].url).hostname;
-
-      const promptDiv = document.createElement('div');
-      promptDiv.className = 'quick-save-prompt';
-      promptDiv.innerHTML = `
-        <div class="quick-save-content">
-          <h4>Quick Save Login?</h4>
-          <p>Save the login credentials for <strong>${hostname}</strong>?</p>
-          <div class="quick-save-actions">
-            <button class="btn btn-primary" id="quickSaveYes">Yes, Save</button>
-            <button class="btn btn-secondary" id="quickSaveNo">No, Later</button>
-          </div>
-        </div>
-      `;
-      mainPanel.insertBefore(promptDiv, mainPanel.firstChild);
-
-      document.getElementById('quickSaveYes').addEventListener('click', () => {
-        quickSaveLoginCredentials(hostname);
-        promptDiv.remove();
-      });
-
-      document.getElementById('quickSaveNo').addEventListener('click', () => {
-        promptDiv.remove();
-      });
-    }
-  });
-}
-
-// Quick save the login credentials
-async function quickSaveLoginCredentials(hostname) {
-  if (!capturedLoginCredentials) return;
-
-  const credential = {
-    siteName: hostname.replace('www.', '').toUpperCase(),
-    siteUrl: hostname,
-    siteUsername: capturedLoginCredentials.username,
-    encryptedPassword: capturedLoginCredentials.password,
-    notes: 'Auto-saved from login',
-    category: '',
-    tags: '',
-    favorite: false
-  };
-
-  try {
-    const response = await chrome.runtime.sendMessage({
-      action: 'saveCredential',
-      credential
-    });
-
-    if (response.success) {
-      const feedback = document.createElement('div');
-      feedback.className = 'copy-feedback';
-      feedback.textContent = ' Credentials saved!';
-      document.body.appendChild(feedback);
-      setTimeout(() => feedback.remove(), 2000);
-
-      loadCredentials();
-      capturedLoginCredentials = null;
-    } else {
-      alert('Failed to save: ' + response.error);
-    }
-  } catch (error) {
-    alert('Error: ' + error.message);
-  }
 }
 
 // Save new credential
@@ -255,9 +226,18 @@ if (newCredForm) {
       return;
     }
 
+    const siteUrlInput = document.getElementById('siteUrl');
+    let siteUrl = siteUrlInput ? siteUrlInput.value.trim() : '';
+    if (!siteUrl) {
+      siteUrl = await getActiveTabSiteUrl();
+      if (siteUrlInput && siteUrl) {
+        siteUrlInput.value = siteUrl;
+      }
+    }
+
     const credential = {
       siteName: document.getElementById('siteName') ? document.getElementById('siteName').value : '',
-      siteUrl: document.getElementById('siteUrl') ? document.getElementById('siteUrl').value : '',
+      siteUrl: normalizeSiteUrl(siteUrl),
       siteUsername: document.getElementById('siteUsername') ? document.getElementById('siteUsername').value : '',
       encryptedPassword: document.getElementById('sitePassword') ? document.getElementById('sitePassword').value : '',
       notes: document.getElementById('siteNotes') ? document.getElementById('siteNotes').value : '',
@@ -265,6 +245,14 @@ if (newCredForm) {
       tags: document.getElementById('siteTags') ? document.getElementById('siteTags').value : '',
       favorite: !!(document.getElementById('siteFavorite') && document.getElementById('siteFavorite').checked)
     };
+
+    if (!credential.siteUrl) {
+      if (errorDiv) {
+        errorDiv.textContent = 'Open the site first or enter the site URL before saving.';
+        errorDiv.style.display = 'block';
+      }
+      return;
+    }
 
     try {
       const response = await chrome.runtime.sendMessage({ action: 'saveCredential', credential });
@@ -293,13 +281,10 @@ if (newCredForm) {
 
 // Load and display credentials
 async function loadCredentials() {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const url = new URL(tabs[0].url).hostname;
-
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'getCredentials',
-      siteUrl: url
+      siteUrl: ''
     });
 
     if (response.success) {
@@ -314,7 +299,7 @@ async function loadCredentials() {
 
 function displayCredentials(credentials) {
   if (!credentials || credentials.length === 0) {
-    credentialsList.innerHTML = '<p>No credentials saved for this site</p>';
+    credentialsList.innerHTML = '<p>No credentials saved yet</p>';
     return;
   }
 

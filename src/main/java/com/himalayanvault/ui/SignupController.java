@@ -2,11 +2,13 @@ package com.himalayanvault.ui;
 
 import java.io.IOException;
 import java.net.URL;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.ResourceBundle;
 
 import com.himalayanvault.auth.AuthManager;
 import com.himalayanvault.auth.RecoveryCodeManager;
+import com.himalayanvault.db.DatabaseManager;
 import com.himalayanvault.export.VaultExporter;
 import com.himalayanvault.security.ClipboardProtector;
 import com.himalayanvault.security.CredentialKeyDerivation;
@@ -23,7 +25,6 @@ import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.paint.Color;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
@@ -32,6 +33,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -118,6 +120,10 @@ public class SignupController implements Initializable {
         if (pwd.isBlank()) { err1.setText("Please enter a master password."); return; }
         if (!PasswordStrength.meetsMasterPasswordRequirements(pwd)) { err1.setText("Password does not meet all requirements."); return; }
         if (!pwd.equals(con)) { err1.setText("Passwords do not match."); confirmField.requestFocus(); return; }
+        if (DatabaseManager.getInstance().isVaultInitialized(username)) {
+            err1.setText("Username already exists. Please choose another username or log in.");
+            return;
+        }
 
         err1.setText("");
         words = recovery.generateMnemonic();
@@ -202,8 +208,19 @@ public class SignupController implements Initializable {
         try {
             String username = usernameField.getText();
             String password = pwdField.getText();
-            auth.setMasterPassword(username, password);
-            recovery.storeHashedMnemonic(username, words);
+
+            if (DatabaseManager.getInstance().isVaultInitialized(username)) {
+                err3.setText("Username already exists. Please choose another username or log in.");
+                return;
+            }
+
+            DatabaseManager.getInstance().withTransaction(connection -> {
+                if (DatabaseManager.getInstance().isVaultInitialized(username)) {
+                    throw new SQLException("Username already exists. Please choose another username or log in.");
+                }
+                auth.setMasterPassword(connection, username, password);
+                recovery.storeHashedMnemonic(connection, username, words);
+            });
 
             String token = SessionManager.getInstance().createSession(
                     username,
@@ -211,9 +228,21 @@ public class SignupController implements Initializable {
                     CredentialKeyDerivation.saltForUser(username));
 
             openVault(token, username);
+        } catch (SQLException e) {
+            if (isDuplicateUsernameError(e)) {
+                err3.setText("Username already exists. Please choose another username or log in.");
+            } else {
+                err3.setText("Vault creation error: " + e.getMessage());
+            }
         } catch (Exception e) {
             err3.setText("Vault creation error: " + e.getMessage());
         }
+    }
+
+    private boolean isDuplicateUsernameError(SQLException e) {
+        String message = e.getMessage();
+        return message != null && (message.contains("Username already exists")
+                || message.contains("UNIQUE constraint failed"));
     }
 
     @FXML private void back1() { goStep(1); }

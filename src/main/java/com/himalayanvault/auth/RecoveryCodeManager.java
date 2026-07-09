@@ -3,6 +3,8 @@ package com.himalayanvault.auth;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -93,6 +95,20 @@ public class RecoveryCodeManager {
         } catch (Exception e) {
             System.err.println("[RecoveryCodeManager] Error storing mnemonic: " + e.getMessage());
         }
+    }
+
+    public void storeHashedMnemonic(Connection connection, String username, List<String> words) throws SQLException {
+        String mnemonicString = String.join(" ", words);
+        byte[] mnemonicBytes = mnemonicString.getBytes();
+
+        byte[] salt = generateSalt();
+        byte[] hashedBytes = hashMnemonicWithSalt(mnemonicBytes, salt);
+
+        String wordsBase64 = Base64.getEncoder().encodeToString(mnemonicBytes);
+        String hashBase64 = Base64.getEncoder().encodeToString(hashedBytes);
+        String saltBase64 = Base64.getEncoder().encodeToString(salt);
+
+        DatabaseManager.getInstance().saveMnemonicHash(connection, username, wordsBase64, hashBase64, saltBase64);
     }
 
     /**

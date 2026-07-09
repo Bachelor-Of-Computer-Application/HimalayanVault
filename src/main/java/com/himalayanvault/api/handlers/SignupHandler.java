@@ -1,5 +1,6 @@
 package com.himalayanvault.api.handlers;
 
+import java.sql.SQLException;
 import java.util.List;
 
 import com.himalayanvault.api.dto.SignupRequest;
@@ -66,23 +67,44 @@ public class SignupHandler implements HttpHandler {
             return;
         }
 
-        if (DatabaseManager.getInstance().loadPasswordHash(username) != null) {
-            JsonUtil.sendResponse(exchange, 409, new SignupResponse(false, "Username already exists", null));
+        if (DatabaseManager.getInstance().isVaultInitialized(username)) {
+            JsonUtil.sendResponse(exchange, 409, new SignupResponse(false,
+                    "Username already exists. Please choose another username or log in.", null));
             return;
         }
 
         try {
-            authManager.setMasterPassword(username, request.password);
             List<String> recoveryWords = recoveryCodeManager.generateMnemonic();
-            recoveryCodeManager.storeHashedMnemonic(username, recoveryWords);
+            DatabaseManager.getInstance().withTransaction(connection -> {
+                if (DatabaseManager.getInstance().isVaultInitialized(username)) {
+                    throw new SQLException("Username already exists");
+                }
+
+                authManager.setMasterPassword(connection, username, request.password);
+                recoveryCodeManager.storeHashedMnemonic(connection, username, recoveryWords);
+            });
 
             System.out.println("[SignupHandler] Vault created for user: " + username);
             SignupResponse response = new SignupResponse(true, "Signup successful", recoveryWords);
             JsonUtil.sendResponse(exchange, 201, response);
+        } catch (SQLException e) {
+            if (isDuplicateUsernameError(e)) {
+                JsonUtil.sendResponse(exchange, 409, new SignupResponse(false,
+                        "Username already exists. Please choose another username or log in.", null));
+            } else {
+                System.err.println("[SignupHandler] Vault creation failed: " + e.getMessage());
+                JsonUtil.sendInternalError(exchange, "Failed to create vault: " + e.getMessage());
+            }
         } catch (Exception e) {
             System.err.println("[SignupHandler] Vault creation failed: " + e.getMessage());
             JsonUtil.sendInternalError(exchange, "Failed to create vault: " + e.getMessage());
         }
+    }
+
+    private boolean isDuplicateUsernameError(SQLException e) {
+        String message = e.getMessage();
+        return message != null && (message.contains("Username already exists")
+                || message.contains("UNIQUE constraint failed"));
     }
 
     private boolean meetsPasswordRequirements(String password) {

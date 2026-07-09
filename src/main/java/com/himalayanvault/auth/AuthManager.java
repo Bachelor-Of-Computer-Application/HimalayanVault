@@ -1,5 +1,8 @@
 package com.himalayanvault.auth;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+
 import com.himalayanvault.db.DatabaseManager;
 import com.himalayanvault.security.Pbkdf2PasswordHasher;
 import com.himalayanvault.security.SessionManager;
@@ -72,6 +75,11 @@ public class AuthManager {
         SessionManager.getInstance().invalidateAllSessions();
         lockout.recordSuccess(username);
         System.out.println("[AuthManager] Master password set for user: " + username + " (PBKDF2)");
+    }
+
+    public void setMasterPassword(Connection connection, String username, String masterPassword) throws SQLException {
+        String passwordHash = Pbkdf2PasswordHasher.hashPassword(masterPassword);
+        DatabaseManager.getInstance().saveMasterPassword(connection, username, passwordHash);
     }
 
     public boolean resetPasswordWithRecovery(String username, String newPassword) {

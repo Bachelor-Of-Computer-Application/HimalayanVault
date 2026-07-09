@@ -27,6 +27,11 @@ public class DatabaseManager {
     private static DatabaseManager instance;
     private Connection connection;
 
+    @FunctionalInterface
+    public interface SqlTransaction {
+        void run(Connection connection) throws SQLException;
+    }
+
     private DatabaseManager() {
         initializeDatabase();
     }
@@ -154,6 +159,16 @@ public class DatabaseManager {
                     )
                     """;
 
+                    String createVaultUsernameIndex = """
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_vault_username_unique
+                        ON vault(username)
+                        """;
+
+                    String createRecoveryUsernameIndex = """
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_recovery_username_unique
+                        ON recovery(username)
+                        """;
+
             // Add indexes for faster queries
             String createIndexSiteUrl = """
                     CREATE INDEX IF NOT EXISTS idx_credentials_site_url 
@@ -190,6 +205,8 @@ public class DatabaseManager {
             stmt.execute(createRecoveryTable);
             stmt.execute(createCredentialsTable);
             migrateCredentialsTable(stmt);
+            stmt.execute(createVaultUsernameIndex);
+            stmt.execute(createRecoveryUsernameIndex);
             stmt.execute(createIndexSiteUrl);
             stmt.execute(createIndexSiteUsername);
             stmt.execute(createIndexUpdated);
@@ -267,8 +284,12 @@ public class DatabaseManager {
     public void saveMasterPassword(String username, String hashString) throws SQLException {
         String salt = Pbkdf2PasswordHasher.extractEmbeddedSalt(hashString);
         String sql = """
-                INSERT OR REPLACE INTO vault (username, password_hash, salt, updated_at)
+                INSERT INTO vault (username, password_hash, salt, updated_at)
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(username) DO UPDATE SET
+                    password_hash = excluded.password_hash,
+                    salt = excluded.salt,
+                    updated_at = CURRENT_TIMESTAMP
                 """;
 
         try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
@@ -280,6 +301,21 @@ public class DatabaseManager {
         } catch (SQLException e) {
             System.err.println("[DatabaseManager] Failed to save master password: " + e.getMessage());
             throw e;
+        }
+    }
+
+    public void saveMasterPassword(Connection conn, String username, String hashString) throws SQLException {
+        String salt = Pbkdf2PasswordHasher.extractEmbeddedSalt(hashString);
+        String sql = """
+                INSERT INTO vault (username, password_hash, salt, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                """;
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            pstmt.setString(2, hashString);
+            pstmt.setString(3, salt.isEmpty() ? hashString : salt);
+            pstmt.executeUpdate();
         }
     }
 
@@ -376,8 +412,13 @@ public class DatabaseManager {
      */
     public void saveMnemonicHash(String username, String mnemonicWordsBase64, String mnemonicHashBase64, String saltBase64) {
         String sql = """
-                INSERT OR REPLACE INTO recovery (username, mnemonic_words, mnemonic_hash, salt, updated_at)
+                INSERT INTO recovery (username, mnemonic_words, mnemonic_hash, salt, updated_at)
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(username) DO UPDATE SET
+                    mnemonic_words = excluded.mnemonic_words,
+                    mnemonic_hash = excluded.mnemonic_hash,
+                    salt = excluded.salt,
+                    updated_at = CURRENT_TIMESTAMP
                 """;
 
         try (PreparedStatement pstmt = getConnection().prepareStatement(sql)) {
@@ -390,6 +431,39 @@ public class DatabaseManager {
         } catch (SQLException e) {
             System.err.println("[DatabaseManager] Failed to save mnemonic hash: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    public void saveMnemonicHash(Connection conn, String username, String mnemonicWordsBase64, String mnemonicHashBase64, String saltBase64) throws SQLException {
+        String sql = """
+                INSERT INTO recovery (username, mnemonic_words, mnemonic_hash, salt, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """;
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            pstmt.setString(2, mnemonicWordsBase64);
+            pstmt.setString(3, mnemonicHashBase64);
+            pstmt.setString(4, saltBase64);
+            pstmt.executeUpdate();
+        }
+    }
+
+    public void withTransaction(SqlTransaction transaction) throws SQLException {
+        Connection conn = getConnection();
+        boolean previousAutoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        try {
+            transaction.run(conn);
+            conn.commit();
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
+        } catch (RuntimeException e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(previousAutoCommit);
         }
     }
 
