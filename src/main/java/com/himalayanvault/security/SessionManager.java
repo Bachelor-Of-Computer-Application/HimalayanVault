@@ -68,6 +68,20 @@ public class SessionManager {
     }
 
     /**
+     * Create a new session for a user from an already derived encryption key.
+     * Used when biometric authentication reuses a vault key that was cached
+     * after a successful master-password unlock.
+     */
+    public String createSession(String username, SecretKey encryptionKey) {
+        String token = generateToken();
+        SessionData session = new SessionData(username, encryptionKey, this.deviceId);
+        sessions.put(token, session);
+        this.isLocked = false;
+        System.out.println("[SessionManager] Session created for user: " + username + ", device ID: " + deviceId);
+        return token;
+    }
+
+    /**
      * Validate a session token and refresh its timeout.
      * Checks: token exists, not expired, not locked, device matches.
      *

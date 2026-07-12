@@ -1,6 +1,7 @@
 package com.himalayanvault.security;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,6 +11,8 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import javax.crypto.SecretKey;
 
 @DisplayName("Session Manager Tests")
 class SessionManagerTest {
@@ -35,6 +38,20 @@ class SessionManagerTest {
         assertNull(manager.validateSession(token));
         assertFalse(manager.isValidToken(token));
         assertTrue(manager.isLocked());
+    }
+
+    @Test
+    @DisplayName("Pre-derived encryption key can create a valid session")
+    void derivedKeySessionCreationWorks() {
+        SessionManager manager = SessionManager.getInstance();
+        manager.invalidateAllSessions();
+
+        SecretKey key = EncryptionUtil.generateKey();
+        String token = manager.createSession("alice", key);
+
+        assertNotNull(token);
+        assertTrue(manager.isValidToken(token));
+        assertTrue(manager.getEncryptionKey(token) == key);
     }
 
     @SuppressWarnings("unchecked")

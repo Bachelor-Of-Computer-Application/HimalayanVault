@@ -5,8 +5,8 @@ import java.net.URL;
 import java.util.ResourceBundle;
 
 import com.himalayanvault.auth.AuthManager;
-import com.himalayanvault.auth.BiometricHandler;
 import com.himalayanvault.auth.AuthManager.VerificationResult;
+import com.himalayanvault.auth.BiometricHandler;
 import com.himalayanvault.db.DatabaseManager;
 import com.himalayanvault.security.CredentialKeyDerivation;
 import com.himalayanvault.security.SessionManager;
@@ -70,6 +70,26 @@ public class LoginController implements Initializable {
     // ── Services ──────────────────────────────────────────────────────
     private final AuthManager     authManager     = new AuthManager();
     private final BiometricHandler biometricHandler = new BiometricHandler();
+
+    private static final class VaultUnlockState {
+        private String username;
+        private javax.crypto.SecretKey vaultKey;
+
+        void store(String username, javax.crypto.SecretKey vaultKey) {
+            this.username = username;
+            this.vaultKey = vaultKey;
+        }
+
+        boolean matches(String candidateUsername) {
+            return username != null && username.equals(candidateUsername) && vaultKey != null;
+        }
+
+        javax.crypto.SecretKey vaultKey() {
+            return vaultKey;
+        }
+    }
+
+    private static final VaultUnlockState UNLOCK_STATE = new VaultUnlockState();
 
     // ─────────────────────────────────────────────────────────────────
     @Override
@@ -212,6 +232,7 @@ public class LoginController implements Initializable {
 
         if (result == VerificationResult.SUCCESS) {
             lockoutUi.clearFailure(username.trim());
+            UNLOCK_STATE.store(username.trim(), CredentialKeyDerivation.keyForUser(username.trim(), password));
             String token = SessionManager.getInstance().createSession(
                     username.trim(),
                     password,
@@ -257,6 +278,11 @@ public class LoginController implements Initializable {
             return;
         }
 
+        if (!UNLOCK_STATE.matches(normalizedUsername)) {
+            showWarning("Unlock with your master password once first so the vault key can be cached for biometric unlock.", false);
+            return;
+        }
+
         showInfo("Biometric prompt opened — waiting for Windows Hello / Touch ID…");
         unlockButton.setDisable(true);
 
@@ -266,8 +292,10 @@ public class LoginController implements Initializable {
             Platform.runLater(() -> {
                 unlockButton.setDisable(false);
                 if (success) {
-                    showWarning("Biometric verified. Enter your master password once to unlock the encrypted vault.", true);
-                    passwordField.requestFocus();
+                        String token = SessionManager.getInstance().createSession(
+                                normalizedUsername,
+                                UNLOCK_STATE.vaultKey());
+                    navigateToVault(normalizedUsername, token);
                 } else {
                     showWarning("Biometric authentication failed. Try master password.", false);
                 }
