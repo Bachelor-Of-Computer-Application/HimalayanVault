@@ -167,6 +167,60 @@ function initializeFormFields() {
   });
 }
 
+function isVisibleAndEnabled(input) {
+  if (!input) {
+    return false;
+  }
+
+  const style = window.getComputedStyle(input);
+  return !input.disabled && !input.readOnly && style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function fillInput(input, value) {
+  if (!input || !value) {
+    return false;
+  }
+
+  input.value = value;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
+function getIdentifierFieldCandidates() {
+  return [
+    'input[autocomplete="email"]',
+    'input[type="email"]',
+    'input[name*="email" i]',
+    'input[id*="email" i]',
+    'input[placeholder*="email" i]',
+    'input[autocomplete="username"]',
+    'input[name*="user" i]',
+    'input[name*="login" i]',
+    'input[name*="username" i]',
+    'input[id*="user" i]',
+    'input[id*="login" i]',
+    'input[id*="username" i]',
+    'input[placeholder*="user" i]',
+    'input[type="text"]'
+  ];
+}
+
+function findIdentifierField() {
+  const selectors = getIdentifierFieldCandidates();
+
+  for (const selector of selectors) {
+    const fields = document.querySelectorAll(selector);
+    for (const field of fields) {
+      if (isVisibleAndEnabled(field)) {
+        return field;
+      }
+    }
+  }
+
+  return null;
+}
+
 /**
  * Show popup with saved credentials when field is focused
  */
@@ -242,29 +296,20 @@ function showCredentialsPopup(inputField) {
  * Autofill username and password fields
  */
 function autofillCredentials(credential) {
-  // Find username input
-  const usernameInputs = document.querySelectorAll(
-    'input[type="text"][name*="user"], ' +
-    'input[type="text"][name*="login"], ' +
-    'input[type="text"][name*="username"], ' +
-    'input[type="text"][placeholder*="user"]'
-  );
+  const identifier = credential.siteUsername || credential.email || '';
 
-  if (usernameInputs.length > 0) {
-    usernameInputs[0].value = credential.siteUsername;
-    usernameInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-    usernameInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+  const identifierField = findIdentifierField();
+  if (identifierField && fillInput(identifierField, identifier)) {
+    identifierField.focus();
   }
 
   // Find password input
   const passwordInputs = document.querySelectorAll('input[type="password"]');
   if (passwordInputs.length > 0) {
-    passwordInputs[0].value = credential.encryptedPassword || '';
-    passwordInputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-    passwordInputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+    fillInput(passwordInputs[0], credential.encryptedPassword || '');
   }
 
-  showNotification('Password filled!', false);
+  showNotification('Login details filled!', false);
 }
 
 // Initialize when page loads
