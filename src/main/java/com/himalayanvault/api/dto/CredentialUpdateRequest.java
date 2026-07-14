@@ -6,6 +6,7 @@ public class CredentialUpdateRequest {
     public String siteUrl;
     public String siteName;
     public String siteUsername;
+    public String siteEmail;          // Optional email identifier
     public String encryptedPassword;
     public String notes;
     public String category;

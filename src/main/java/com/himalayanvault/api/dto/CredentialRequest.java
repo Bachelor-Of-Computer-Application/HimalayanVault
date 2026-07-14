@@ -5,6 +5,7 @@ public class CredentialRequest {
     public String siteUrl;
     public String siteName;
     public String siteUsername;
+    public String siteEmail;          // Optional email identifier
     public String encryptedPassword;  // AES-GCM encrypted
     public String notes;
     public String category;

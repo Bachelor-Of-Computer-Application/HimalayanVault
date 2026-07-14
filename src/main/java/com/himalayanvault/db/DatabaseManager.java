@@ -250,6 +250,11 @@ public class DatabaseManager {
             stmt.execute("UPDATE credentials SET is_favorite = 0 WHERE is_favorite IS NULL");
             System.out.println("[DatabaseManager] Added is_favorite column to credentials table");
         }
+        if (!hasColumn("credentials", "site_email")) {
+            stmt.execute("ALTER TABLE credentials ADD COLUMN site_email TEXT DEFAULT ''");
+            stmt.execute("UPDATE credentials SET site_email = '' WHERE site_email IS NULL");
+            System.out.println("[DatabaseManager] Added site_email column to credentials table");
+        }
     }
 
     private boolean hasColumn(String table, String column) throws SQLException {
@@ -618,16 +623,23 @@ public class DatabaseManager {
     public long saveCredential(String username, String siteUrl, String siteName, 
                                String siteUsername, int accountNumber, String encryptedPassword, String notes) {
         return saveCredential(username, siteUrl, siteName, siteUsername, accountNumber, encryptedPassword, notes,
-                "", "", false);
+                "", "", false, "");
     }
 
     public long saveCredential(String username, String siteUrl, String siteName,
                                String siteUsername, int accountNumber, String encryptedPassword, String notes,
                                String category, String tags, boolean favorite) {
+        return saveCredential(username, siteUrl, siteName, siteUsername, accountNumber, encryptedPassword, notes,
+                category, tags, favorite, "");
+    }
+
+    public long saveCredential(String username, String siteUrl, String siteName,
+                               String siteUsername, int accountNumber, String encryptedPassword, String notes,
+                               String category, String tags, boolean favorite, String siteEmail) {
         String sql = """
                 INSERT INTO credentials (owner_username, site_url, site_name, site_username, 
-                                        account_number, encrypted_password, notes, category, tags, is_favorite, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                                        account_number, encrypted_password, notes, category, tags, is_favorite, site_email, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """;
 
         try (PreparedStatement pstmt = getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -641,6 +653,7 @@ public class DatabaseManager {
             pstmt.setString(8, category != null ? category : "");
             pstmt.setString(9, tags != null ? tags : "");
             pstmt.setInt(10, favorite ? 1 : 0);
+            pstmt.setString(11, siteEmail != null ? siteEmail : "");
             
             int affectedRows = pstmt.executeUpdate();
             if (affectedRows > 0) {
@@ -741,16 +754,23 @@ public class DatabaseManager {
     public boolean updateCredential(long credentialId, String username, String siteUrl, 
                                    String siteName, String siteUsername, String encryptedPassword, String notes) {
         return updateCredential(credentialId, username, siteUrl, siteName, siteUsername, encryptedPassword, notes,
-                "", "", false);
+                "", "", false, "");
     }
 
     public boolean updateCredential(long credentialId, String username, String siteUrl,
                                    String siteName, String siteUsername, String encryptedPassword, String notes,
                                    String category, String tags, boolean favorite) {
+        return updateCredential(credentialId, username, siteUrl, siteName, siteUsername, encryptedPassword, notes,
+                category, tags, favorite, "");
+    }
+
+    public boolean updateCredential(long credentialId, String username, String siteUrl,
+                                   String siteName, String siteUsername, String encryptedPassword, String notes,
+                                   String category, String tags, boolean favorite, String siteEmail) {
         String sql = """
                 UPDATE credentials 
                 SET site_url = ?, site_name = ?, site_username = ?, 
-                    encrypted_password = ?, notes = ?, category = ?, tags = ?, is_favorite = ?, updated_at = CURRENT_TIMESTAMP
+                    encrypted_password = ?, notes = ?, category = ?, tags = ?, is_favorite = ?, site_email = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND owner_username = ?
                 """;
 
@@ -763,8 +783,9 @@ public class DatabaseManager {
             pstmt.setString(6, category != null ? category : "");
             pstmt.setString(7, tags != null ? tags : "");
             pstmt.setInt(8, favorite ? 1 : 0);
-            pstmt.setLong(9, credentialId);
-            pstmt.setString(10, username);
+            pstmt.setString(9, siteEmail != null ? siteEmail : "");
+            pstmt.setLong(10, credentialId);
+            pstmt.setString(11, username);
 
             int affectedRows = pstmt.executeUpdate();
             if (affectedRows > 0) {
