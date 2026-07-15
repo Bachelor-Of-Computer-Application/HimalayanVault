@@ -152,12 +152,23 @@ function initializeFormFields() {
     }
   });
 
-  // Find username inputs (exclude email inputs)
+  // Find username and email inputs
   const usernameInputs = document.querySelectorAll(
-    'input[type="text"][name*="user"], ' +
-    'input[type="text"][name*="login"], ' +
-    'input[type="text"][name*="username"], ' +
-    'input[type="text"][placeholder*="user"]'
+    'input[autocomplete="email"], ' +
+    'input[autocomplete="username"], ' +
+    'input[type="email"], ' +
+    'input[name*="email" i], ' +
+    'input[id*="email" i], ' +
+    'input[placeholder*="email" i], ' +
+    'input[name*="user" i], ' +
+    'input[name*="login" i], ' +
+    'input[name*="username" i], ' +
+    'input[id*="user" i], ' +
+    'input[id*="login" i], ' +
+    'input[id*="username" i], ' +
+    'input[placeholder*="user" i], ' +
+    'input[placeholder*="login" i], ' +
+    'input[placeholder*="username" i]'
   );
   usernameInputs.forEach(input => {
     if (!input.hasAttribute('data-hv-listener')) {
