@@ -30,8 +30,8 @@ function getCurrentSiteSearchTerms() {
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'autofill') {
-    autofillCredentials(request.credential);
-    sendResponse({ success: true });
+    const result = autofillCredentials(request.credential);
+    sendResponse({ success: true, ...result });
   }
 });
 
@@ -99,9 +99,7 @@ function extractFormCredentials(form) {
     return null;
   }
 
-  const usernameField = form.querySelector(
-    'input[type="text"], input[type="email"], input[name*="user"], input[name*="login"], input[name*="email"]'
-  );
+  const usernameField = findIdentifierField(form);
   const passwordField = form.querySelector('input[type="password"]');
 
   if (!passwordField) {
@@ -154,21 +152,33 @@ function initializeFormFields() {
 
   // Find username and email inputs
   const usernameInputs = document.querySelectorAll(
-    'input[autocomplete="email"], ' +
-    'input[autocomplete="username"], ' +
+    'input[autocomplete*="email" i], ' +
+    'input[autocomplete*="username" i], ' +
     'input[type="email"], ' +
     'input[name*="email" i], ' +
     'input[id*="email" i], ' +
     'input[placeholder*="email" i], ' +
+    'input[aria-label*="email" i], ' +
     'input[name*="user" i], ' +
     'input[name*="login" i], ' +
     'input[name*="username" i], ' +
+    'input[name*="account" i], ' +
+    'input[name*="identifier" i], ' +
     'input[id*="user" i], ' +
     'input[id*="login" i], ' +
     'input[id*="username" i], ' +
+    'input[id*="account" i], ' +
+    'input[id*="identifier" i], ' +
     'input[placeholder*="user" i], ' +
     'input[placeholder*="login" i], ' +
-    'input[placeholder*="username" i]'
+    'input[placeholder*="username" i], ' +
+    'input[placeholder*="account" i], ' +
+    'input[placeholder*="identifier" i], ' +
+    'input[aria-label*="user" i], ' +
+    'input[aria-label*="login" i], ' +
+    'input[aria-label*="username" i], ' +
+    'input[aria-label*="account" i], ' +
+    'input[aria-label*="identifier" i]'
   );
   usernameInputs.forEach(input => {
     if (!input.hasAttribute('data-hv-listener')) {
@@ -184,7 +194,13 @@ function isVisibleAndEnabled(input) {
   }
 
   const style = window.getComputedStyle(input);
-  return !input.disabled && !input.readOnly && style.display !== 'none' && style.visibility !== 'hidden';
+  const rect = input.getBoundingClientRect();
+  return !input.disabled
+    && !input.readOnly
+    && style.display !== 'none'
+    && style.visibility !== 'hidden'
+    && rect.width > 0
+    && rect.height > 0;
 }
 
 function fillInput(input, value) {
@@ -192,44 +208,220 @@ function fillInput(input, value) {
     return false;
   }
 
-  input.value = value;
+  const prototype = Object.getPrototypeOf(input);
+  const valueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+  if (valueSetter) {
+    valueSetter.call(input, value);
+  } else {
+    input.value = value;
+  }
+
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
   return true;
 }
 
-function getIdentifierFieldCandidates() {
+function getCredentialIdentifier(credential) {
+  if (!credential) {
+    return '';
+  }
+
+  return credential.loginIdentifier
+    || credential.login_identifier
+    || credential.siteUsername
+    || credential.site_username
+    || credential.siteEmail
+    || credential.site_email
+    || credential.username
+    || credential.email
+    || credential.emailAddress
+    || credential.email_address
+    || credential.login
+    || credential.identifier
+    || '';
+}
+
+function getCredentialPassword(credential) {
+  if (!credential) {
+    return '';
+  }
+
+  return credential.encryptedPassword
+    || credential.encrypted_password
+    || credential.password
+    || credential.sitePassword
+    || credential.site_password
+    || '';
+}
+
+function getIdentifierFieldCandidates(scope = document) {
   return [
-    'input[autocomplete="email"]',
-    'input[type="email"]',
-    'input[name*="email" i]',
-    'input[id*="email" i]',
-    'input[placeholder*="email" i]',
-    'input[autocomplete="username"]',
-    'input[name*="user" i]',
-    'input[name*="login" i]',
-    'input[name*="username" i]',
-    'input[id*="user" i]',
-    'input[id*="login" i]',
-    'input[id*="username" i]',
-    'input[placeholder*="user" i]',
-    'input[type="text"]'
+    ...scope.querySelectorAll(
+      [
+        'input[autocomplete*="email" i]',
+        'input[autocomplete*="username" i]',
+        'input[type="email"]',
+        'input[name*="email" i]',
+        'input[id*="email" i]',
+        'input[placeholder*="email" i]',
+        'input[aria-label*="email" i]',
+        'input[name*="user" i]',
+        'input[name*="login" i]',
+        'input[name*="account" i]',
+        'input[name*="identifier" i]',
+        'input[id*="user" i]',
+        'input[id*="login" i]',
+        'input[id*="account" i]',
+        'input[id*="identifier" i]',
+        'input[placeholder*="user" i]',
+        'input[placeholder*="login" i]',
+        'input[placeholder*="account" i]',
+        'input[placeholder*="identifier" i]',
+        'input[aria-label*="user" i]',
+        'input[aria-label*="login" i]',
+        'input[aria-label*="account" i]',
+        'input[aria-label*="identifier" i]'
+      ].join(', ')
+    ),
+    ...scope.querySelectorAll('input')
   ];
 }
 
-function findIdentifierField() {
-  const selectors = getIdentifierFieldCandidates();
+function isIdentifierField(input) {
+  if (!isVisibleAndEnabled(input)) {
+    return false;
+  }
 
-  for (const selector of selectors) {
-    const fields = document.querySelectorAll(selector);
-    for (const field of fields) {
-      if (isVisibleAndEnabled(field)) {
-        return field;
-      }
+  const type = (input.getAttribute('type') || 'text').toLowerCase();
+  if (['password', 'hidden', 'submit', 'button', 'checkbox', 'radio', 'file'].includes(type)) {
+    return false;
+  }
+
+  if (type === 'email') {
+    return true;
+  }
+
+  const text = [
+    input.name,
+    input.id,
+    input.placeholder,
+    input.autocomplete,
+    input.getAttribute('aria-label')
+  ].join(' ').toLowerCase();
+
+  return /\b(e-?mail|mail|user(name)?|login|logon|account|identifier|userid|user-id)\b/.test(text)
+    || ['text', 'search', 'tel', 'url'].includes(type);
+}
+
+function findFirstIdentifierField(scope = document) {
+  const seen = new Set();
+  for (const field of getIdentifierFieldCandidates(scope)) {
+    if (!seen.has(field) && isIdentifierField(field)) {
+      return field;
     }
+    seen.add(field);
   }
 
   return null;
+}
+
+function findPasswordField() {
+  const passwordInputs = document.querySelectorAll('input[type="password"]');
+  for (const field of passwordInputs) {
+    if (isVisibleAndEnabled(field)) {
+      return field;
+    }
+  }
+
+  return passwordInputs[0] || null;
+}
+
+function findIdentifierField(scope = document) {
+  const passwordField = scope === document ? findPasswordField() : scope.querySelector('input[type="password"]');
+
+  if (passwordField) {
+    const form = passwordField.closest('form');
+    const formIdentifierField = form ? findFirstIdentifierField(form) : null;
+    if (formIdentifierField && formIdentifierField !== passwordField) {
+      return formIdentifierField;
+    }
+
+    const container = passwordField.closest('form, [role="form"], main, section, div');
+    const containerIdentifierField = container ? findFirstIdentifierField(container) : null;
+    if (containerIdentifierField && containerIdentifierField !== passwordField) {
+      return containerIdentifierField;
+    }
+  }
+
+  return findFirstIdentifierField(scope);
+}
+
+function getFieldCenter(input) {
+  const rect = input.getBoundingClientRect();
+  return {
+    x: rect.left + (rect.width / 2),
+    y: rect.top + (rect.height / 2)
+  };
+}
+
+function isFillableTextInput(input) {
+  if (!isVisibleAndEnabled(input)) {
+    return false;
+  }
+
+  const type = (input.getAttribute('type') || 'text').toLowerCase();
+  return !['password', 'hidden', 'submit', 'button', 'checkbox', 'radio', 'file'].includes(type);
+}
+
+function findIdentifierFieldsNearPassword(passwordField) {
+  if (!passwordField) {
+    return [findIdentifierField()].filter(Boolean);
+  }
+
+  const scopes = [
+    passwordField.closest('form'),
+    passwordField.closest('[role="form"]'),
+    passwordField.closest('main'),
+    passwordField.closest('section'),
+    passwordField.parentElement,
+    document
+  ].filter(Boolean);
+  const passwordCenter = getFieldCenter(passwordField);
+  const candidates = [];
+  const seen = new Set();
+
+  for (const scope of scopes) {
+    const fields = [...scope.querySelectorAll('input')].filter(input => input !== passwordField && isFillableTextInput(input));
+
+    for (const field of fields) {
+      if (!seen.has(field) && isIdentifierField(field)) {
+        candidates.push(field);
+        seen.add(field);
+      }
+    }
+
+    const beforePassword = fields
+      .filter(field => getFieldCenter(field).y <= passwordCenter.y + 8)
+      .sort((a, b) => {
+        const aCenter = getFieldCenter(a);
+        const bCenter = getFieldCenter(b);
+        return Math.abs(aCenter.y - passwordCenter.y) - Math.abs(bCenter.y - passwordCenter.y)
+          || Math.abs(aCenter.x - passwordCenter.x) - Math.abs(bCenter.x - passwordCenter.x);
+      });
+
+    for (const field of beforePassword) {
+      if (!seen.has(field)) {
+        candidates.push(field);
+        seen.add(field);
+      }
+    }
+
+    if (candidates.length > 0 && scope !== document) {
+      break;
+    }
+  }
+
+  return candidates;
 }
 
 /**
@@ -258,8 +450,8 @@ function showCredentialsPopup(inputField) {
               <div class="hv-popup-header">Saved Passwords</div>
               <div class="hv-popup-list">
                 ${response.credentials.map((cred, idx) => `
-                  <div class="hv-popup-item" data-index="${idx}" data-username="${cred.siteUsername}">
-                    <span class="hv-popup-username">${cred.siteUsername}</span>
+                  <div class="hv-popup-item" data-index="${idx}">
+                    <span class="hv-popup-username">${getCredentialIdentifier(cred)}</span>
                     <button class="hv-popup-fill">Use</button>
                   </div>
                 `).join('')}
@@ -277,8 +469,8 @@ function showCredentialsPopup(inputField) {
           popup.querySelectorAll('.hv-popup-fill').forEach(btn => {
             btn.addEventListener('click', (e) => {
               e.preventDefault();
-              const username = btn.closest('.hv-popup-item').dataset.username;
-              autofillCredentials(response.credentials.find(c => c.siteUsername === username));
+              const index = Number(btn.closest('.hv-popup-item').dataset.index);
+              autofillCredentials(response.credentials[index]);
               popup.remove();
             });
           });
@@ -293,10 +485,14 @@ function showCredentialsPopup(inputField) {
             document.addEventListener('click', closeListener);
           }, 100);
           return;
-        }
-
-        requestCredentials(index + 1);
       }
+
+      if (chrome.runtime.lastError) {
+        return;
+      }
+
+      requestCredentials(index + 1);
+    }
     );
   };
 
@@ -307,20 +503,37 @@ function showCredentialsPopup(inputField) {
  * Autofill username and password fields
  */
 function autofillCredentials(credential) {
-  const identifier = credential.siteUsername || credential.email || '';
+  const identifier = getCredentialIdentifier(credential);
+  const password = getCredentialPassword(credential);
+  const passwordField = findPasswordField();
+  const identifierFields = findIdentifierFieldsNearPassword(passwordField);
+  let filledIdentifier = false;
+  let filledPassword = false;
 
-  const identifierField = findIdentifierField();
-  if (identifierField && fillInput(identifierField, identifier)) {
-    identifierField.focus();
+  for (const identifierField of identifierFields) {
+    if (fillInput(identifierField, identifier)) {
+      if (!filledIdentifier) {
+        identifierField.focus();
+      }
+      filledIdentifier = true;
+    }
   }
 
-  // Find password input
-  const passwordInputs = document.querySelectorAll('input[type="password"]');
-  if (passwordInputs.length > 0) {
-    fillInput(passwordInputs[0], credential.encryptedPassword || '');
+  if (passwordField) {
+    filledPassword = fillInput(passwordField, password);
   }
 
-  showNotification('Login details filled!', false);
+  showNotification(
+    filledPassword
+      ? 'Login details filled!'
+      : 'Username filled, but no password field was found.',
+    !filledPassword
+  );
+
+  return {
+    filledIdentifier,
+    filledPassword
+  };
 }
 
 // Initialize when page loads

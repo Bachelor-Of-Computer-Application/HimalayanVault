@@ -288,6 +288,7 @@ public class CredentialSearcher {
             cred.siteUrl = rs.getString("site_url");
             cred.siteName = rs.getString("site_name");
             cred.siteUsername = rs.getString("site_username");
+            cred.siteEmail = readString(rs, "site_email");
             cred.accountNumber = rs.getInt("account_number");
             cred.encryptedPassword = rs.getString("encrypted_password");
             cred.notes = rs.getString("notes");

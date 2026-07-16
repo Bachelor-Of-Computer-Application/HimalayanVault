@@ -167,6 +167,7 @@ public class CredentialHandler implements HttpHandler {
             String notes = request.notes != null ? request.notes : "";
             String category = request.category != null ? request.category.trim() : "";
             String tags = request.tags != null ? request.tags.trim() : "";
+            String siteEmail = request.siteEmail != null ? request.siteEmail.trim() : "";
 
             if (db.credentialExists(username, request.siteUrl, request.siteUsername)) {
                 Long existingId = db.findCredentialId(username, request.siteUrl, request.siteUsername);
@@ -185,7 +186,8 @@ public class CredentialHandler implements HttpHandler {
                     notes,
                     category,
                     tags,
-                    request.favorite);
+                    request.favorite,
+                    siteEmail);
 
                 if (updated) {
                     CredentialResponse response = new CredentialResponse(true, "Credential updated with ID: " + existingId);
@@ -207,7 +209,8 @@ public class CredentialHandler implements HttpHandler {
                 notes,
                 category,
                 tags,
-                request.favorite);
+                request.favorite,
+                siteEmail);
 
             if (credId > 0) {
                 CredentialResponse response = new CredentialResponse(true, "Credential saved with ID: " + credId);
@@ -269,7 +272,8 @@ public class CredentialHandler implements HttpHandler {
                 request.notes != null ? request.notes : "",
                 request.category != null ? request.category.trim() : "",
                 request.tags != null ? request.tags.trim() : "",
-                request.favorite
+                request.favorite,
+                request.siteEmail != null ? request.siteEmail.trim() : ""
             );
 
             if (success) {
@@ -435,6 +439,7 @@ public class CredentialHandler implements HttpHandler {
             rs.getString("site_url"),
             rs.getString("site_name"),
             rs.getString("site_username"),
+            readString(rs, "site_email"),
             accountNumber,
             rs.getString("encrypted_password"),
             rs.getString("notes"),

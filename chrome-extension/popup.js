@@ -235,10 +235,13 @@ if (newCredForm) {
       }
     }
 
+    const siteUsername = document.getElementById('siteUsername') ? document.getElementById('siteUsername').value.trim() : '';
     const credential = {
       siteName: document.getElementById('siteName') ? document.getElementById('siteName').value : '',
       siteUrl: normalizeSiteUrl(siteUrl),
-      siteUsername: document.getElementById('siteUsername') ? document.getElementById('siteUsername').value : '',
+      loginIdentifier: siteUsername,
+      siteUsername,
+      siteEmail: siteUsername.includes('@') ? siteUsername : '',
       encryptedPassword: document.getElementById('sitePassword') ? document.getElementById('sitePassword').value : '',
       notes: document.getElementById('siteNotes') ? document.getElementById('siteNotes').value : '',
       category: document.getElementById('siteCategory') ? document.getElementById('siteCategory').value : '',
@@ -303,16 +306,24 @@ function displayCredentials(credentials) {
     return;
   }
 
+  credentials.forEach(cred => {
+    cred.loginIdentifier = getCredentialLoginIdentifier(cred);
+    cred.siteUsername = cred.loginIdentifier;
+    if (cred.loginIdentifier.includes('@')) {
+      cred.siteEmail = cred.loginIdentifier;
+    }
+  });
+
   credentialsList.innerHTML = credentials.map((cred, index) => `
     <div class="credential-item" data-index="${index}" data-credential-id="${cred.id}">
       <h4>${cred.favorite ? '* ' : ''}${escapeHtml(cred.siteName || cred.siteUrl || '')}</h4>
       <p><strong>URL:</strong> ${escapeHtml(cred.siteUrl || '')}</p>
-      <p><strong>Username:</strong> <span class="username-value">${escapeHtml(cred.siteUsername || '')}</span></p>
+      <p><strong>Username or Email:</strong> <span class="username-value">${escapeHtml(cred.loginIdentifier || '')}</span></p>
       ${cred.category ? `<p><strong>Category:</strong> ${escapeHtml(cred.category)}</p>` : ''}
       ${cred.tags ? `<p><strong>Tags:</strong> ${escapeHtml(cred.tags)}</p>` : ''}
       ${cred.notes ? `<p><strong>Notes:</strong> ${escapeHtml(cred.notes)}</p>` : ''}
       <div class="actions">
-        <button class="btn btn-secondary btn-copy" data-username="${escapeHtml(cred.siteUsername || '')}">Copy Username</button>
+        <button class="btn btn-secondary btn-copy" data-username="${escapeHtml(cred.loginIdentifier || '')}">Copy Login</button>
         <button class="btn btn-secondary btn-autofill" data-credential-index="${index}">Autofill</button>
         <button class="btn btn-secondary btn-delete" data-credential-id="${cred.id}">Delete</button>
       </div>
@@ -332,7 +343,15 @@ function displayCredentials(credentials) {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       const index = btn.dataset.credentialIndex;
-      autofillPage(credentials[index]);
+      const visibleUsername = btn.closest('.credential-item')?.querySelector('.username-value')?.textContent.trim() || '';
+      if (visibleUsername) {
+        credentials[index].loginIdentifier = visibleUsername;
+        credentials[index].siteUsername = visibleUsername;
+        if (visibleUsername.includes('@')) {
+          credentials[index].siteEmail = visibleUsername;
+        }
+      }
+      autofillPage(credentials[index], visibleUsername);
     });
   });
 
@@ -355,6 +374,23 @@ function escapeHtml(text) {
     "'": '&#039;'
   };
   return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+function getCredentialLoginIdentifier(credential) {
+  return String(
+    credential.loginIdentifier
+    || credential.siteUsername
+    || credential.site_username
+    || credential.siteEmail
+    || credential.site_email
+    || credential.username
+    || credential.email
+    || credential.emailAddress
+    || credential.email_address
+    || credential.login
+    || credential.identifier
+    || ''
+  ).trim();
 }
 
 function copyToClipboard(text, message = 'Copied to clipboard!') {
@@ -381,7 +417,7 @@ function copyToClipboard(text, message = 'Copied to clipboard!') {
   });
 }
 
-async function autofillPage(credential) {
+async function autofillPage(credential, identifierOverride = '') {
   // Get the active tab
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
 
@@ -390,20 +426,214 @@ async function autofillPage(credential) {
     return;
   }
 
-  // Send autofill command to content script
+  const tab = tabs[0];
+  const tabUrl = tab.url || '';
+
+  if (/^(chrome|edge|about|chrome-extension):\/\//i.test(tabUrl)) {
+    alert('Autofill cannot run on browser/system pages. Open the website login page and try again.');
+    return;
+  }
+
   try {
-    await chrome.tabs.sendMessage(tabs[0].id, {
-      action: 'autofill',
-      credential: credential
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'MAIN',
+      args: [credential, identifierOverride],
+      func: (credentialToFill, directIdentifier) => {
+        const getIdentifier = (credential) => credential?.loginIdentifier
+          || credential?.login_identifier
+          || credential?.siteUsername
+          || credential?.site_username
+          || credential?.siteEmail
+          || credential?.site_email
+          || credential?.username
+          || credential?.email
+          || credential?.emailAddress
+          || credential?.email_address
+          || credential?.login
+          || credential?.identifier
+          || '';
+
+        const isVisible = (input) => {
+          if (!input) return false;
+          const style = window.getComputedStyle(input);
+          const rect = input.getBoundingClientRect();
+          return !input.disabled
+            && !input.readOnly
+            && style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && rect.width > 0
+            && rect.height > 0;
+        };
+
+        const setValue = (input, value) => {
+          if (!input || !value) return false;
+          input.focus();
+          input.select?.();
+          if (document.execCommand && document.execCommand('insertText', false, value)) {
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+          if (setter) {
+            setter.call(input, value);
+          } else {
+            input.value = value;
+          }
+          input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
+          input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: value[value.length - 1] || '' }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.blur();
+          return true;
+        };
+
+        const identifier = directIdentifier || getIdentifier(credentialToFill);
+        const password = credentialToFill?.encryptedPassword || credentialToFill?.encrypted_password || credentialToFill?.password || '';
+        const passwordField = [...document.querySelectorAll('input[type="password"], input[name*="pass" i], input[id*="pass" i]')]
+          .find(isVisible);
+
+        const identifierSelectors = [
+          'input#email',
+          'input[name="email" i]',
+          'input[type="email"]',
+          'input[autocomplete*="email" i]',
+          'input[autocomplete*="username" i]',
+          'input[name*="email" i]',
+          'input[id*="email" i]',
+          'input[placeholder*="email" i]',
+          'input[name*="user" i]',
+          'input[id*="user" i]',
+          'input[placeholder*="user" i]',
+          'input[name*="login" i]',
+          'input[id*="login" i]',
+          'input[placeholder*="login" i]'
+        ];
+
+        const scopedRoots = [
+          passwordField?.closest('form'),
+          passwordField?.closest('[role="form"]'),
+          document
+        ].filter(Boolean);
+        const candidates = [];
+        const seen = new Set();
+
+        for (const root of scopedRoots) {
+          for (const selector of identifierSelectors) {
+            for (const input of root.querySelectorAll(selector)) {
+              if (input !== passwordField && isVisible(input) && !seen.has(input)) {
+                candidates.push(input);
+                seen.add(input);
+              }
+            }
+          }
+
+          if (passwordField) {
+            const passwordRect = passwordField.getBoundingClientRect();
+            const inputsAbovePassword = [...root.querySelectorAll('input')]
+              .filter(input => {
+                if (input === passwordField || !isVisible(input)) return false;
+                const type = (input.getAttribute('type') || 'text').toLowerCase();
+                if (['password', 'hidden', 'submit', 'button', 'checkbox', 'radio', 'file'].includes(type)) return false;
+                return input.getBoundingClientRect().top <= passwordRect.top + 8;
+              })
+              .sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
+
+            for (const input of inputsAbovePassword) {
+              if (!seen.has(input)) {
+                candidates.push(input);
+                seen.add(input);
+              }
+            }
+          }
+
+          if (candidates.length > 0 && root !== document) break;
+        }
+
+        const fillAll = () => {
+          const directEmailField = document.querySelector(
+            'input#email, input[name="email" i], input[type="email"], input[autocomplete*="email" i], input[placeholder*="email" i]'
+          );
+          if (directEmailField && isVisible(directEmailField)) {
+            candidates.unshift(directEmailField);
+          }
+
+          if (passwordField) {
+            const passwordTop = passwordField.getBoundingClientRect().top;
+            const nearestTextInputs = [...document.querySelectorAll('input')]
+              .filter(input => {
+                if (input === passwordField || !isVisible(input)) return false;
+                const type = (input.getAttribute('type') || 'text').toLowerCase();
+                return !['password', 'hidden', 'submit', 'button', 'checkbox', 'radio', 'file'].includes(type)
+                  && input.getBoundingClientRect().top <= passwordTop + 8;
+              })
+              .sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
+            candidates.unshift(...nearestTextInputs);
+          }
+
+          const uniqueCandidates = [...new Set(candidates)];
+          uniqueCandidates.forEach(input => setValue(input, identifier));
+          if (passwordField) setValue(passwordField, password);
+          return uniqueCandidates.length;
+        };
+
+        const filledIdentifierCount = fillAll();
+        setTimeout(fillAll, 150);
+        setTimeout(fillAll, 500);
+
+        const notification = document.createElement('div');
+        notification.textContent = candidates.length > 0
+          ? 'Login details filled!'
+          : 'Password filled, but no email/username field was found.';
+        notification.style.cssText = 'position:fixed;z-index:2147483647;right:16px;top:16px;padding:10px 12px;background:#111827;color:#fff;border-radius:6px;font:13px system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.24)';
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+
+        return {
+          filledIdentifier: filledIdentifierCount > 0,
+          filledPassword: !!passwordField,
+          identifier,
+          identifierSelectors: [...new Set(candidates)].map(input => `${input.tagName.toLowerCase()}#${input.id || ''}[name="${input.name || ''}"][type="${input.type || ''}"]`)
+        };
+      }
     });
 
     // Show success message
     const feedback = document.createElement('div');
     feedback.className = 'copy-feedback';
-    feedback.textContent = ' Credential auto-filled!';
+    const fillResult = results && results[0] ? results[0].result : null;
+    feedback.textContent = fillResult && fillResult.filledIdentifier
+      ? ' Credential auto-filled!'
+      : ' Password filled; email field not found.';
     document.body.appendChild(feedback);
     setTimeout(() => feedback.remove(), 2000);
   } catch (error) {
+    if (/receiving end does not exist/i.test(error.message || '')) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content.js']
+        });
+
+        const response = await chrome.tabs.sendMessage(tab.id, {
+          action: 'autofill',
+          credential: {
+            ...credential,
+            loginIdentifier: identifierOverride || getCredentialLoginIdentifier(credential),
+            siteUsername: identifierOverride || credential.siteUsername || getCredentialLoginIdentifier(credential)
+          }
+        });
+
+        if (response && response.success) {
+          showSuccessNotification(response.filledPassword ? 'Credential auto-filled!' : 'Username filled; password field not found.');
+          return;
+        }
+      } catch (retryError) {
+        alert('Autofill failed after reloading the content script: ' + retryError.message);
+        return;
+      }
+    }
+
     alert('Autofill failed: ' + error.message);
   }
 }

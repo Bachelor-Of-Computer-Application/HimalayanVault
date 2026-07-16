@@ -382,9 +382,16 @@ async function handleSaveCredential(credential) {
   }
 
   const siteUrl = credential.siteUrl || credential.siteName || '';
+  const loginIdentifier = String(
+    credential.loginIdentifier
+    || credential.siteUsername
+    || credential.siteEmail
+    || credential.email
+    || ''
+  ).trim();
 
-  if (!siteUrl || !credential.siteUsername || !credential.encryptedPassword) {
-    throw new Error('Site URL, username, and password required');
+  if (!siteUrl || !loginIdentifier || !credential.encryptedPassword) {
+    throw new Error('Site URL, username/email, and password required');
   }
 
   try {
@@ -392,7 +399,8 @@ async function handleSaveCredential(credential) {
       token: sessionToken,
       siteUrl,
       siteName: credential.siteName || siteUrl,
-      siteUsername: credential.siteUsername,
+      siteUsername: loginIdentifier,
+      siteEmail: credential.siteEmail || (loginIdentifier.includes('@') ? loginIdentifier : ''),
       encryptedPassword: credential.encryptedPassword,
       notes: credential.notes || '',
       category: credential.category || '',
